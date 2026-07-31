@@ -26,8 +26,9 @@ ChartJS.register(
   LineElement
 );
 
+// Configure Chart.js global defaults with Pixel Digivolve
 ChartJS.defaults.color = '#7dd3fc';
-ChartJS.defaults.font.family = 'Courier New, monospace';
+ChartJS.defaults.font.family = "'Pixel Digivolve', monospace";
 
 const COLOR_MAP = {
   Red: '#ef4444',
@@ -60,21 +61,22 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetch('/api/analytics/')
-    .then((response) => response.json())
-    .then((data) => {
-      setData(data);
-      setLoading(false);
-    })
-    .catch((error) => {
-      console.error("Error fetching data:", error);
-    });
+      .then((response) => response.json())
+      .then((data) => {
+        setData(data);
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error("Error fetching data:", error);
+      });
   }, []);
-  
+
   if (loading || !data) {
     return (
       <div className="digi-loader">
         <div className="digi-spinner"></div>
-        <p>CONNECTING TO DIGITAL WORLD DATABASE...</p>
+        {/* Italics applied to loader text */}
+        <p className="digi-loading-text">CONNECTING TO DIGITAL WORLD DATABASE...</p>
       </div>
     );
   }
@@ -83,11 +85,22 @@ export default function Dashboard() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { labels: { color: '#00f3ff' } },
+      legend: { 
+        labels: { 
+          color: '#00f3ff',
+          font: { family: "'Pixel Digivolve', monospace" }
+        } 
+      },
     },
     scales: {
-      x: { ticks: { color: '#00f3ff' }, grid: { color: '#1e293b' } },
-      y: { ticks: { color: '#00f3ff' }, grid: { color: '#1e293b' } },
+      x: { 
+        ticks: { color: '#00f3ff', font: { family: "'Pixel Digivolve', monospace" } }, 
+        grid: { color: '#1e293b' } 
+      },
+      y: { 
+        ticks: { color: '#00f3ff', font: { family: "'Pixel Digivolve', monospace" } }, 
+        grid: { color: '#1e293b' } 
+      },
     },
   };
 

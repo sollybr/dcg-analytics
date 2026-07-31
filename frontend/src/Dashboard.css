@@ -112,3 +112,30 @@ body {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Font Definitions */
+@font-face {
+  font-family: 'Pixel Digivolve';
+  src: url('/fonts/Pixel Digivolve-D_A1brmM.otf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Pixel Digivolve';
+  src: url('/fonts/Pixel Digivolve Italic-DDD-c-pK.otf') format('truetype');
+  font-weight: normal;
+  font-style: italic;
+}
+
+/* Dashboard Font Override */
+.digi-dashboard,
+.digi-loader {
+  font-family: 'Pixel Digivolve', monospace, sans-serif;
+}
+
+/* Italic class helper or loading text */
+.digi-loading-text,
+.digi-status {
+  font-style: italic;
+}

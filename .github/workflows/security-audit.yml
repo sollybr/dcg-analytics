@@ -1,0 +1,38 @@
+﻿name: Security Audit
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  schedule:
+    - cron: '0 0 * * 1'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Run Audit
+        run: npm audit --audit-level=moderate
+
+  sast-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for Leaked Secrets
+        uses: trufflesecurity/trufflehog-main@main
+
+      - name: Semgrep Static Analysis
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/react p/javascript

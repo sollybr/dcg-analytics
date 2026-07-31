@@ -109,7 +109,10 @@ export default function Dashboard() {
       <header className="digi-header">
         <div className="digi-logo">DIGIMON ANALYTICS OS</div>
         <div className="digi-status">
-          <span className="indicator"></span> SYSTEM ONLINE | CARDS INDEXED: {data.total_cards || 0}
+          <span className="indicator"></span>
+          <span>SYSTEM ONLINE</span>
+          <span style={{ opacity: 0.4 }}>|</span>
+          <span>CARDS INDEXED: {data.total_cards || 0}</span>
         </div>
       </header>
 

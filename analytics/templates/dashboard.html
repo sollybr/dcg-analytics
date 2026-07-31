@@ -76,6 +76,38 @@
         const secColorLabels = {{ sec_color_labels|safe }};
         const secColorData = {{ sec_color_data|safe }};
 
+        const COLOR_MAP = {
+            'Red': '#e53935',
+            'Blue': '#1e88e5',
+            'Yellow': '#fdd835',
+            'Green': '#43a047',
+            'Black': '#37474f',
+            'Purple': '#8e24aa',
+            'White': '#d6d6d6',
+            'Unknown': '#9e9e9e'
+        };
+
+        function getColorsForLabels(labels, ctx = null) {
+            return labels.map(label => {
+                if (COLOR_MAP[label]) {
+                    return COLOR_MAP[label];
+                }
+                if (label.includes('/')) {
+                    const parts = label.split('/').map(s => s.trim());
+                    const c1 = COLOR_MAP[parts[0]] || '#9e9e9e';
+                    const c2 = COLOR_MAP[parts[1]] || '#9e9e9e';
+                    if (ctx) {
+                        const gradient = ctx.createLinearGradient(0, 0, 400, 0);
+                        gradient.addColorStop(0, c1);
+                        gradient.addColorStop(1, c2);
+                        return gradient;
+                    }
+                    return c1;
+                }
+                return '#9e9e9e';
+            });
+        }
+
         new Chart(document.getElementById('typeChart'), {
             type: 'pie',
             data: { labels: typeLabels, datasets: [{ data: typeData }] }
@@ -88,12 +120,26 @@
 
         new Chart(document.getElementById('singleColorChart'), {
             type: 'doughnut',
-            data: { labels: singleColorLabels, datasets: [{ data: singleColorData }] }
+            data: { 
+                labels: singleColorLabels, 
+                datasets: [{ 
+                    data: singleColorData,
+                    backgroundColor: getColorsForLabels(singleColorLabels)
+                }] 
+            }
         });
 
-        new Chart(document.getElementById('multicolorChart'), {
+        const multiCtx = document.getElementById('multicolorChart').getContext('2d');
+        new Chart(multiCtx, {
             type: 'bar',
-            data: { labels: multicolorLabels, datasets: [{ label: 'Count', data: multicolorData }] },
+            data: { 
+                labels: multicolorLabels, 
+                datasets: [{ 
+                    label: 'Count', 
+                    data: multicolorData,
+                    backgroundColor: getColorsForLabels(multicolorLabels, multiCtx)
+                }] 
+            },
             options: { indexAxis: 'y' }
         });
 
@@ -107,9 +153,16 @@
             data: { labels: expansionLabels, datasets: [{ label: 'Cards', data: expansionData }] }
         });
 
-        new Chart(document.getElementById('secColorChart'), {
+        const secCtx = document.getElementById('secColorChart').getContext('2d');
+        new Chart(secCtx, {
             type: 'pie',
-            data: { labels: secColorLabels, datasets: [{ data: secColorData }] }
+            data: { 
+                labels: secColorLabels, 
+                datasets: [{ 
+                    data: secColorData,
+                    backgroundColor: getColorsForLabels(secColorLabels, secCtx)
+                }] 
+            }
         });
     </script>
 </body>

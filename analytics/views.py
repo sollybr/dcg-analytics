@@ -67,7 +67,8 @@ def dashboard(request):
 
     for card in valid_cards:
         card_type = card.get('cardType', 'Unknown')
-        type_counter[card_type] += 1
+        if card_type and card_type != '-':
+            type_counter[card_type] += 1
 
         name_obj = card.get('name')
         if isinstance(name_obj, dict):
@@ -96,11 +97,17 @@ def dashboard(request):
 
         rarity = str(card.get('rarity', '')).upper()
         if 'SEC' in rarity:
-            sec_color_counter[color] += 1
+            if '/' in color:
+                for c in color.split('/'):
+                    c_clean = c.strip()
+                    if c_clean:
+                        sec_color_counter[c_clean] += 1
+            else:
+                sec_color_counter[color] += 1
 
         raw_subtype = card.get('type', '') or card.get('types', '')
         if isinstance(raw_subtype, str) and raw_subtype:
-            subtypes = [t.strip() for t in raw_subtype.split('/') if t.strip()]
+            subtypes = [t.strip() for t in raw_subtype.split('/') if t.strip() and t.strip() != '-']
             for st in subtypes:
                 subtype_counter[st] += 1
 

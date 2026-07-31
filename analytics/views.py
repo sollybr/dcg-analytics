@@ -1,8 +1,7 @@
-import json
 import requests
 from collections import Counter
 from django.core.cache import cache
-from django.shortcuts import render
+from django.http import JsonResponse
 
 DATA_URL = "https://raw.githubusercontent.com/TakaOtaku/Digimon-Card-App/main/src/assets/cardlists/DigimonCards.json"
 CACHE_TIMEOUT = 60 * 60 * 6
@@ -48,9 +47,8 @@ def fetch_digimon_data():
             data = []
     return data or []
 
-def dashboard(request):
+def analytics_data(request):
     raw_cards = fetch_digimon_data()
-    
     valid_cards = [
         sanitize_card_text(card) 
         for card in raw_cards 
@@ -71,10 +69,7 @@ def dashboard(request):
             type_counter[card_type] += 1
 
         name_obj = card.get('name')
-        if isinstance(name_obj, dict):
-            english_name = name_obj.get('english', 'Unknown')
-        else:
-            english_name = str(name_obj) if name_obj else 'Unknown'
+        english_name = name_obj.get('english', 'Unknown') if isinstance(name_obj, dict) else (str(name_obj) if name_obj else 'Unknown')
         name_counter[english_name] += 1
 
         color = card.get('color', 'Unknown')
@@ -85,14 +80,12 @@ def dashboard(request):
 
         card_number = card.get('cardNumber', '')
         notes = card.get('notes', '')
-        
         if '-' in card_number:
             set_code = card_number.split('-')[0].strip()
         elif notes and ':' in notes:
             set_code = notes.split(':')[0].strip()
         else:
             set_code = 'Other'
-            
         expansion_counter[set_code] += 1
 
         rarity = str(card.get('rarity', '')).upper()
@@ -116,29 +109,22 @@ def dashboard(request):
     top_multicolors = multicolor_counter.most_common(10)
     top_subtypes = subtype_counter.most_common(20)
 
-    context = {
+    data = {
         'total_cards': len(valid_cards),
-        
-        'type_labels': json.dumps(list(type_counter.keys())),
-        'type_data': json.dumps(list(type_counter.values())),
-
-        'name_labels': json.dumps([x[0] for x in top_names]),
-        'name_data': json.dumps([x[1] for x in top_names]),
-
-        'single_color_labels': json.dumps(list(single_color_counter.keys())),
-        'single_color_data': json.dumps(list(single_color_counter.values())),
-
-        'multicolor_labels': json.dumps([x[0] for x in top_multicolors]),
-        'multicolor_data': json.dumps([x[1] for x in top_multicolors]),
-
-        'expansion_labels': json.dumps([x[0] for x in sorted_expansions]),
-        'expansion_data': json.dumps([x[1] for x in sorted_expansions]),
-
-        'sec_color_labels': json.dumps(list(sec_color_counter.keys())),
-        'sec_color_data': json.dumps(list(sec_color_counter.values())),
-
-        'subtype_labels': json.dumps([x[0] for x in top_subtypes]),
-        'subtype_data': json.dumps([x[1] for x in top_subtypes]),
+        'type_labels': list(type_counter.keys()),
+        'type_data': list(type_counter.values()),
+        'name_labels': [x[0] for x in top_names],
+        'name_data': [x[1] for x in top_names],
+        'single_color_labels': list(single_color_counter.keys()),
+        'single_color_data': list(single_color_counter.values()),
+        'multicolor_labels': [x[0] for x in top_multicolors],
+        'multicolor_data': [x[1] for x in top_multicolors],
+        'expansion_labels': [x[0] for x in sorted_expansions],
+        'expansion_data': [x[1] for x in sorted_expansions],
+        'sec_color_labels': list(sec_color_counter.keys()),
+        'sec_color_data': list(sec_color_counter.values()),
+        'subtype_labels': [x[0] for x in top_subtypes],
+        'subtype_data': [x[1] for x in top_subtypes],
     }
     
-    return render(request, 'dashboard.html', context)
+    return JsonResponse(data)

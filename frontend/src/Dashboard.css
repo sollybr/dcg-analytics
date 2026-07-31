@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+body {
+  margin: 0;
+  background-color: #060911;
+  color: #00f3ff;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.digi-dashboard {
+  padding: 20px;
+  min-height: 100vh;
+}
+
+.digi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #00f3ff;
+  padding-bottom: 15px;
+  margin-bottom: 25px;
+  box-shadow: 0 4px 20px rgba(0, 243, 255, 0.2);
+}
+
+.digi-logo {
+  font-size: 1.8rem;
+  font-weight: bold;
+  letter-spacing: 3px;
+  color: #ff6600;
+  text-shadow: 0 0 10px rgba(255, 102, 0, 0.8);
+}
+
+.digi-status {
+  background: rgba(0, 243, 255, 0.1);
+  padding: 8px 16px;
+  border: 1px solid #00f3ff;
+  font-size: 0.9rem;
+}
+
+.indicator {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background-color: #22c55e;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #22c55e;
+  margin-right: 8px;
+}
+
+.digi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 20px;
+}
+
+.digi-card {
+  background: rgba(13, 22, 38, 0.85);
+  border: 1px solid #1e3a8a;
+  border-left: 4px solid #00f3ff;
+  padding: 15px;
+  border-radius: 4px;
+  position: relative;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.6);
+}
+
+.digi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 15px 15px 0;
+  border-color: transparent #00f3ff transparent transparent;
+}
+
+.card-header {
+  font-size: 1.1rem;
+  font-weight: bold;
+  letter-spacing: 2px;
+  color: #ff6600;
+  margin-bottom: 15px;
+  border-bottom: 1px dashed rgba(0, 243, 255, 0.3);
+  padding-bottom: 5px;
+}
+
+.chart-container {
+  height: 280px;
+  position: relative;
+}
+
+.digi-loader {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  color: #00f3ff;
+}
+
+.digi-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(0, 243, 255, 0.2);
+  border-top-color: #ff6600;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

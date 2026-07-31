@@ -2,15 +2,25 @@
   "version": 2,
   "builds": [
     {
-      "src": "digimon_stats/wsgi.py",
-      "use": "@vercel/python",
-      "config": { "maxLambdaSize": "15mb", "runtime": "python3.11" }
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
     }
   ],
   "routes": [
     {
+      "src": "/api/(.*)",
+      "dest": "api/index.py"
+    },
+    {
       "src": "/(.*)",
-      "dest": "digimon_stats/wsgi.py"
+      "dest": "/frontend/$1"
     }
   ]
 }

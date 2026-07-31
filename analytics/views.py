@@ -5,10 +5,9 @@ from django.core.cache import cache
 from django.shortcuts import render
 
 DATA_URL = "https://raw.githubusercontent.com/TakaOtaku/Digimon-Card-App/main/src/assets/cardlists/DigimonCards.json"
-CACHE_TIMEOUT = 60 * 60 * 6  # Cache data for 6 hours
+CACHE_TIMEOUT = 60 * 60 * 6
 
 def is_valid_card(card):
-
     name_obj = card.get('name', {})
     eng_name = name_obj.get('english', '') if isinstance(name_obj, dict) else str(name_obj)
     eng_name = str(eng_name).strip()
@@ -26,7 +25,6 @@ def is_valid_card(card):
     return True
 
 def sanitize_card_text(card):
-
     text_fields = ["effect", "digivolveEffect", "securityEffect", "aceEffect", "specialDigivolve", "assembly"]
     for field in text_fields:
         val = card.get(field)
@@ -52,7 +50,7 @@ def fetch_digimon_data():
 
 def dashboard(request):
     raw_cards = fetch_digimon_data()
-
+    
     valid_cards = [
         sanitize_card_text(card) 
         for card in raw_cards 
@@ -61,12 +59,13 @@ def dashboard(request):
 
     type_counter = Counter()
     name_counter = Counter()
-    color_counter = Counter()
+    single_color_counter = Counter()
+    multicolor_counter = Counter()
     expansion_counter = Counter()
     sec_color_counter = Counter()
+    subtype_counter = Counter()
 
     for card in valid_cards:
-
         card_type = card.get('cardType', 'Unknown')
         type_counter[card_type] += 1
 
@@ -78,7 +77,10 @@ def dashboard(request):
         name_counter[english_name] += 1
 
         color = card.get('color', 'Unknown')
-        color_counter[color] += 1
+        if '/' in color:
+            multicolor_counter[color] += 1
+        else:
+            single_color_counter[color] += 1
 
         card_number = card.get('cardNumber', '')
         notes = card.get('notes', '')
@@ -96,9 +98,16 @@ def dashboard(request):
         if 'SEC' in rarity:
             sec_color_counter[color] += 1
 
-    top_names = name_counter.most_common(15)
+        raw_subtype = card.get('type', '') or card.get('types', '')
+        if isinstance(raw_subtype, str) and raw_subtype:
+            subtypes = [t.strip() for t in raw_subtype.split('/') if t.strip()]
+            for st in subtypes:
+                subtype_counter[st] += 1
 
+    top_names = name_counter.most_common(15)
     sorted_expansions = sorted(expansion_counter.items(), key=lambda x: x[0])
+    top_multicolors = multicolor_counter.most_common(10)
+    top_subtypes = subtype_counter.most_common(20)
 
     context = {
         'total_cards': len(valid_cards),
@@ -109,14 +118,20 @@ def dashboard(request):
         'name_labels': json.dumps([x[0] for x in top_names]),
         'name_data': json.dumps([x[1] for x in top_names]),
 
-        'color_labels': json.dumps(list(color_counter.keys())),
-        'color_data': json.dumps(list(color_counter.values())),
+        'single_color_labels': json.dumps(list(single_color_counter.keys())),
+        'single_color_data': json.dumps(list(single_color_counter.values())),
+
+        'multicolor_labels': json.dumps([x[0] for x in top_multicolors]),
+        'multicolor_data': json.dumps([x[1] for x in top_multicolors]),
 
         'expansion_labels': json.dumps([x[0] for x in sorted_expansions]),
         'expansion_data': json.dumps([x[1] for x in sorted_expansions]),
 
         'sec_color_labels': json.dumps(list(sec_color_counter.keys())),
         'sec_color_data': json.dumps(list(sec_color_counter.values())),
+
+        'subtype_labels': json.dumps([x[0] for x in top_subtypes]),
+        'subtype_data': json.dumps([x[1] for x in top_subtypes]),
     }
     
     return render(request, 'dashboard.html', context)

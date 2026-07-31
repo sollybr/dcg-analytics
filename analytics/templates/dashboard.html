@@ -3,117 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Digimon TCG - Card Release Statistics</title>
+    <title>Digimon Card Analytics</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 2rem; }
-        h1 { margin-bottom: 0.5rem; font-size: 2.25rem; }
-        .subtitle { color: #94a3b8; margin-bottom: 2rem; }
-        .stat-banner { background: #1e293b; padding: 1rem 1.5rem; border-radius: 8px; margin-bottom: 2rem; font-size: 1.25rem; font-weight: 600; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 1.5rem; }
-        .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        .card.full-width { grid-column: 1 / -1; }
-        canvas { width: 100% !important; max-height: 350px; }
+        body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; }
+        .card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { text-align: center; }
+        h2 { font-size: 1.1rem; margin-bottom: 15px; color: #333; }
     </style>
 </head>
 <body>
-    <h1>Digimon TCG Analytics Dashboard</h1>
-    <p class="subtitle">Detailed breakdown of releases, color distribution, and rarities</p>
 
-    <div class="stat-banner">
-        Total Index Size: <span style="color: #38bdf8;">{{ total_cards }} Cards</span>
-    </div>
+    <h1>Digimon TCG Analytics (Total: {{ total_cards }})</h1>
 
     <div class="grid">
-        <!-- Graph 1: Cards per Expansion -->
-        <div class="card full-width">
-            <h3>1. Cards Released per Expansion Set</h3>
-            <canvas id="expansionChart"></canvas>
-        </div>
-
-        <!-- Graph 2: Number of Cards per Name -->
-        <div class="card full-width">
-            <h3>2. Top 15 Most Printed Card Names</h3>
-            <canvas id="nameChart"></canvas>
-        </div>
-
-        <!-- Graph 3: Card Type Distribution -->
         <div class="card">
-            <h3>3. Card Type Distribution</h3>
+            <h2>Card Types Distribution</h2>
             <canvas id="typeChart"></canvas>
         </div>
 
-        <!-- Graph 4: Color Distribution -->
         <div class="card">
-            <h3>4. General Color Distribution</h3>
-            <canvas id="colorChart"></canvas>
+            <h2>Top 15 Most Common Card Names</h2>
+            <canvas id="nameChart"></canvas>
         </div>
 
-        <!-- Graph 5: Secret Rarity Color Breakdown -->
-        <div class="card full-width">
-            <h3>5. Color Distribution for Secret Rares (SEC)</h3>
+        <div class="card">
+            <h2>Single Color Distribution</h2>
+            <canvas id="singleColorChart"></canvas>
+        </div>
+
+        <div class="card">
+            <h2>Top 10 Multicolor Combinations</h2>
+            <canvas id="multicolorChart"></canvas>
+        </div>
+
+        <div class="card">
+            <h2>Top 20 Card Subtypes / Traits</h2>
+            <canvas id="subtypeChart"></canvas>
+        </div>
+
+        <div class="card">
+            <h2>Cards per Expansion Set</h2>
+            <canvas id="expansionChart"></canvas>
+        </div>
+
+        <div class="card">
+            <h2>Secret Rare (SEC) Colors</h2>
             <canvas id="secColorChart"></canvas>
         </div>
     </div>
 
     <script>
-        const chartOptions = { 
-            responsive: true, 
-            plugins: { legend: { labels: { color: '#f8fafc' } } },
-            scales: { x: { ticks: { color: '#94a3b8' } }, y: { ticks: { color: '#94a3b8' } } }
-        };
+        const typeLabels = {{ type_labels|safe }};
+        const typeData = {{ type_data|safe }};
+        
+        const nameLabels = {{ name_labels|safe }};
+        const nameData = {{ name_data|safe }};
+        
+        const singleColorLabels = {{ single_color_labels|safe }};
+        const singleColorData = {{ single_color_data|safe }};
+        
+        const multicolorLabels = {{ multicolor_labels|safe }};
+        const multicolorData = {{ multicolor_data|safe }};
+        
+        const subtypeLabels = {{ subtype_labels|safe }};
+        const subtypeData = {{ subtype_data|safe }};
+        
+        const expansionLabels = {{ expansion_labels|safe }};
+        const expansionData = {{ expansion_data|safe }};
+        
+        const secColorLabels = {{ sec_color_labels|safe }};
+        const secColorData = {{ sec_color_data|safe }};
 
-        // Palette mapping for Digimon Colors
-        const colorPalette = {
-            'Red': '#ef4444',
-            'Blue': '#3b82f6',
-            'Yellow': '#eab308',
-            'Green': '#22c55e',
-            'Purple': '#a855f7',
-            'Black': '#64748b',
-            'White': '#f8fafc',
-            'Colorless': '#94a3b8'
-        };
-
-        function getColors(labels) {
-            return labels.map(l => colorPalette[l] || '#38bdf8');
-        }
-
-        // 1. Cards per Expansion
-        new Chart(document.getElementById('expansionChart'), {
-            type: 'bar',
-            data: { labels: {{ expansion_labels|safe }}, datasets: [{ label: 'Card Count', data: {{ expansion_data|safe }}, backgroundColor: '#38bdf8' }] },
-            options: chartOptions
+        new Chart(document.getElementById('typeChart'), {
+            type: 'pie',
+            data: { labels: typeLabels, datasets: [{ data: typeData }] }
         });
 
-        // 2. Cards per Name (Top 15)
         new Chart(document.getElementById('nameChart'), {
             type: 'bar',
-            data: { labels: {{ name_labels|safe }}, datasets: [{ label: 'Total Variations', data: {{ name_data|safe }}, backgroundColor: '#a855f7' }] },
-            options: chartOptions
+            data: { labels: nameLabels, datasets: [{ label: 'Count', data: nameData }] }
         });
 
-        // 3. Card Type Distribution
-        new Chart(document.getElementById('typeChart'), {
+        new Chart(document.getElementById('singleColorChart'), {
             type: 'doughnut',
-            data: { labels: {{ type_labels|safe }}, datasets: [{ data: {{ type_data|safe }}, backgroundColor: ['#38bdf8', '#f43f5e', '#a855f7', '#eab308', '#22c55e'] }] },
-            options: { responsive: true, plugins: { legend: { labels: { color: '#f8fafc' } } } }
+            data: { labels: singleColorLabels, datasets: [{ data: singleColorData }] }
         });
 
-        // 4. Color Distribution
-        const colorLabels = {{ color_labels|safe }};
-        new Chart(document.getElementById('colorChart'), {
-            type: 'pie',
-            data: { labels: colorLabels, datasets: [{ data: {{ color_data|safe }}, backgroundColor: getColors(colorLabels) }] },
-            options: { responsive: true, plugins: { legend: { labels: { color: '#f8fafc' } } } }
-        });
-
-        // 5. Secret Rare Color Breakdown
-        const secLabels = {{ sec_color_labels|safe }};
-        new Chart(document.getElementById('secColorChart'), {
+        new Chart(document.getElementById('multicolorChart'), {
             type: 'bar',
-            data: { labels: secLabels, datasets: [{ label: 'Secret Rare Cards', data: {{ sec_color_data|safe }}, backgroundColor: getColors(secLabels) }] },
-            options: chartOptions
+            data: { labels: multicolorLabels, datasets: [{ label: 'Count', data: multicolorData }] },
+            options: { indexAxis: 'y' }
+        });
+
+        new Chart(document.getElementById('subtypeChart'), {
+            type: 'bar',
+            data: { labels: subtypeLabels, datasets: [{ label: 'Count', data: subtypeData }] }
+        });
+
+        new Chart(document.getElementById('expansionChart'), {
+            type: 'bar',
+            data: { labels: expansionLabels, datasets: [{ label: 'Cards', data: expansionData }] }
+        });
+
+        new Chart(document.getElementById('secColorChart'), {
+            type: 'pie',
+            data: { labels: secColorLabels, datasets: [{ data: secColorData }] }
         });
     </script>
 </body>

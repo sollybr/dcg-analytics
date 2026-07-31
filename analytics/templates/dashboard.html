@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digimon TCG - Card Release Statistics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 2rem; }
+        h1 { margin-bottom: 0.5rem; font-size: 2.25rem; }
+        .subtitle { color: #94a3b8; margin-bottom: 2rem; }
+        .stat-banner { background: #1e293b; padding: 1rem 1.5rem; border-radius: 8px; margin-bottom: 2rem; font-size: 1.25rem; font-weight: 600; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 1.5rem; }
+        .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .card.full-width { grid-column: 1 / -1; }
+        canvas { width: 100% !important; max-height: 350px; }
+    </style>
+</head>
+<body>
+    <h1>Digimon TCG Analytics Dashboard</h1>
+    <p class="subtitle">Detailed breakdown of releases, color distribution, and rarities</p>
+
+    <div class="stat-banner">
+        Total Index Size: <span style="color: #38bdf8;">{{ total_cards }} Cards</span>
+    </div>
+
+    <div class="grid">
+        <!-- Graph 1: Cards per Expansion -->
+        <div class="card full-width">
+            <h3>1. Cards Released per Expansion Set</h3>
+            <canvas id="expansionChart"></canvas>
+        </div>
+
+        <!-- Graph 2: Number of Cards per Name -->
+        <div class="card full-width">
+            <h3>2. Top 15 Most Printed Card Names</h3>
+            <canvas id="nameChart"></canvas>
+        </div>
+
+        <!-- Graph 3: Card Type Distribution -->
+        <div class="card">
+            <h3>3. Card Type Distribution</h3>
+            <canvas id="typeChart"></canvas>
+        </div>
+
+        <!-- Graph 4: Color Distribution -->
+        <div class="card">
+            <h3>4. General Color Distribution</h3>
+            <canvas id="colorChart"></canvas>
+        </div>
+
+        <!-- Graph 5: Secret Rarity Color Breakdown -->
+        <div class="card full-width">
+            <h3>5. Color Distribution for Secret Rares (SEC)</h3>
+            <canvas id="secColorChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const chartOptions = { 
+            responsive: true, 
+            plugins: { legend: { labels: { color: '#f8fafc' } } },
+            scales: { x: { ticks: { color: '#94a3b8' } }, y: { ticks: { color: '#94a3b8' } } }
+        };
+
+        // Palette mapping for Digimon Colors
+        const colorPalette = {
+            'Red': '#ef4444',
+            'Blue': '#3b82f6',
+            'Yellow': '#eab308',
+            'Green': '#22c55e',
+            'Purple': '#a855f7',
+            'Black': '#64748b',
+            'White': '#f8fafc',
+            'Colorless': '#94a3b8'
+        };
+
+        function getColors(labels) {
+            return labels.map(l => colorPalette[l] || '#38bdf8');
+        }
+
+        // 1. Cards per Expansion
+        new Chart(document.getElementById('expansionChart'), {
+            type: 'bar',
+            data: { labels: {{ expansion_labels|safe }}, datasets: [{ label: 'Card Count', data: {{ expansion_data|safe }}, backgroundColor: '#38bdf8' }] },
+            options: chartOptions
+        });
+
+        // 2. Cards per Name (Top 15)
+        new Chart(document.getElementById('nameChart'), {
+            type: 'bar',
+            data: { labels: {{ name_labels|safe }}, datasets: [{ label: 'Total Variations', data: {{ name_data|safe }}, backgroundColor: '#a855f7' }] },
+            options: chartOptions
+        });
+
+        // 3. Card Type Distribution
+        new Chart(document.getElementById('typeChart'), {
+            type: 'doughnut',
+            data: { labels: {{ type_labels|safe }}, datasets: [{ data: {{ type_data|safe }}, backgroundColor: ['#38bdf8', '#f43f5e', '#a855f7', '#eab308', '#22c55e'] }] },
+            options: { responsive: true, plugins: { legend: { labels: { color: '#f8fafc' } } } }
+        });
+
+        // 4. Color Distribution
+        const colorLabels = {{ color_labels|safe }};
+        new Chart(document.getElementById('colorChart'), {
+            type: 'pie',
+            data: { labels: colorLabels, datasets: [{ data: {{ color_data|safe }}, backgroundColor: getColors(colorLabels) }] },
+            options: { responsive: true, plugins: { legend: { labels: { color: '#f8fafc' } } } }
+        });
+
+        // 5. Secret Rare Color Breakdown
+        const secLabels = {{ sec_color_labels|safe }};
+        new Chart(document.getElementById('secColorChart'), {
+            type: 'bar',
+            data: { labels: secLabels, datasets: [{ label: 'Secret Rare Cards', data: {{ sec_color_data|safe }}, backgroundColor: getColors(secLabels) }] },
+            options: chartOptions
+        });
+    </script>
+</body>
+</html>

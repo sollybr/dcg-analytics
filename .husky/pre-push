@@ -1,5 +1,1 @@
-#!/bin/sh
-. "$dirname/../.husky/_/husky.sh"
-
-export PATH="$PATH:/c/Program Files/nodejs"
 npm audit --audit-level=high

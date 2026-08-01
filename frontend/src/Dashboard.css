@@ -168,3 +168,14 @@ body {
 .digi-status {
   font-style: italic;
 }
+
+.footer-links {
+  list-style: none; /* Removes bullet points */
+  list-style-type: none; /* Extra fallback */
+  padding: 0; /* Removes default browser bullet indent */
+  margin: 0;
+}
+
+.footer-links li {
+  margin-bottom: 0.5rem;
+}

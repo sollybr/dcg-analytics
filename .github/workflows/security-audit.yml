@@ -27,10 +27,15 @@ jobs:
   sast-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Scan for Leaked Secrets
-        uses: trufflesecurity/trufflehog-main@main
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
 
       - name: Semgrep Static Analysis
         uses: returntocorp/semgrep-action@v1

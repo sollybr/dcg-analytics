@@ -1,8 +1,11 @@
 from django.contrib import admin
-from django.urls import path
-from analytics.views import analytics_data
+from django.urls import include, path
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/analytics/', analytics_data),
+    path(
+        'api/',
+        include('analytics.urls'),
+    ),
 ]

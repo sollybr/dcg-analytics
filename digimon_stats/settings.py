@@ -1,8 +1,11 @@
 import os
+import dj_database_url
+
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+CRON_SECRET = os.getenv("CRON_SECRET", "default-dev-token")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-digimon-stats-key-12345')
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
@@ -30,12 +33,22 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+if os.environ.get('DATABASE_URL'):
+    import dj_database_url
+
+    DATABASES = {
+        'default': dj_database_url.parse(
+            os.environ['DATABASE_URL'],
+            conn_max_age=0,
+        )
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 ROOT_URLCONF = 'digimon_stats.urls'
 

@@ -1,38 +1,56 @@
+import os
+
 from collections import Counter
 
 from django.core.cache import cache
 from django.http import JsonResponse
 
-from .card_sync import maybe_refresh_cards
+from .card_sync import sync_cards
 from .models import DigimonCard
+
+
+def sync_cards_view(request):
+    # Retrieve the secret key set in Vercel environment variables
+    expected_token = os.environ.get("CRON_SECRET") or os.environ.get("CARD_SYNC_TOKEN")
+
+    # If no secret is configured on the server, block access by default
+    if not expected_token:
+        return JsonResponse(
+            {"error": "Server cron secret is not configured."},
+            status=500
+        )
+
+    # 1. Check standard Vercel Cron Authorization header ("Bearer <token>")
+    auth_header = request.headers.get("Authorization", "")
+    token_from_header = ""
+    if auth_header.startswith("Bearer "):
+        token_from_header = auth_header.split("Bearer ")[1].strip()
+
+    # 2. Check fallback custom header or query string (useful for manual debugging/curl)
+    supplied_token = (
+        token_from_header or 
+        request.headers.get("X-Card-Sync-Token") or 
+        request.GET.get("token")
+    )
+
+    if supplied_token != expected_token:
+        return JsonResponse(
+            {"error": "Unauthorized request."},
+            status=403
+        )
+
+    # Token is valid -> execute synchronization
+    try:
+        result = sync_cards()
+        return JsonResponse(result, status=200)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 CACHE_TIMEOUT = 60 * 60 * 6
 
 
 def analytics_data(request):
-    """
-    Return analytics calculated from SQLite.
-
-    GitHub synchronization is triggered in the background
-    when necessary. The HTTP request never waits for GitHub.
-    """
-
-    # This only schedules a background operation if the
-    # refresh interval has elapsed.
-    #
-    # It does NOT make the request wait for the network.
-    maybe_refresh_cards()
-
-    cache_key = (
-        f"analytics_data:{request.get_full_path()}"
-    )
-
-    cached_data = cache.get(cache_key)
-
-    if cached_data is not None:
-        return JsonResponse(cached_data)
-
     cards = DigimonCard.objects.all()
 
     type_counter = Counter()
@@ -44,25 +62,13 @@ def analytics_data(request):
     subtype_counter = Counter()
 
     for card in cards:
-        # -----------------------------------------------------
-        # CARD TYPE
-        # -----------------------------------------------------
-
         card_type = card.card_type
 
         if card_type and card_type != "-":
             type_counter[card_type] += 1
 
-        # -----------------------------------------------------
-        # NAME
-        # -----------------------------------------------------
-
         name = card.name or "Unknown"
         name_counter[name] += 1
-
-        # -----------------------------------------------------
-        # COLOR
-        # -----------------------------------------------------
 
         color = card.color or "Unknown"
 
@@ -71,16 +77,8 @@ def analytics_data(request):
         else:
             single_color_counter[color] += 1
 
-        # -----------------------------------------------------
-        # EXPANSION
-        # -----------------------------------------------------
-
         expansion = card.expansion or "Other"
         expansion_counter[expansion] += 1
-
-        # -----------------------------------------------------
-        # SEC COLOR
-        # -----------------------------------------------------
 
         rarity = str(card.rarity).upper()
 
@@ -94,32 +92,21 @@ def analytics_data(request):
             else:
                 sec_color_counter[color] += 1
 
-        # -----------------------------------------------------
-        # SUBTYPE
-        # -----------------------------------------------------
-
         raw_subtype = card.subtype
 
         if raw_subtype:
             subtypes = [
                 value.strip()
                 for value in raw_subtype.split("/")
-                if value.strip()
-                and value.strip() != "-"
+                if value.strip() and value.strip() != "-"
             ]
 
             for subtype in subtypes:
                 subtype_counter[subtype] += 1
 
     top_names = name_counter.most_common(15)
-
-    top_multicolors = (
-        multicolor_counter.most_common(10)
-    )
-
-    top_subtypes = (
-        subtype_counter.most_common(20)
-    )
+    top_multicolors = multicolor_counter.most_common(10)
+    top_subtypes = subtype_counter.most_common(20)
 
     sorted_expansions = sorted(
         expansion_counter.items(),
@@ -129,20 +116,14 @@ def analytics_data(request):
     data = {
         "total_cards": cards.count(),
 
-        "type_labels": list(
-            type_counter.keys()
-        ),
-        "type_data": list(
-            type_counter.values()
-        ),
+        "type_labels": list(type_counter.keys()),
+        "type_data": list(type_counter.values()),
 
         "name_labels": [
-            name
-            for name, _ in top_names
+            name for name, _ in top_names
         ],
         "name_data": [
-            count
-            for _, count in top_names
+            count for _, count in top_names
         ],
 
         "single_color_labels": list(
@@ -153,21 +134,17 @@ def analytics_data(request):
         ),
 
         "multicolor_labels": [
-            color
-            for color, _ in top_multicolors
+            color for color, _ in top_multicolors
         ],
         "multicolor_data": [
-            count
-            for _, count in top_multicolors
+            count for _, count in top_multicolors
         ],
 
         "expansion_labels": [
-            expansion
-            for expansion, _ in sorted_expansions
+            expansion for expansion, _ in sorted_expansions
         ],
         "expansion_data": [
-            count
-            for _, count in sorted_expansions
+            count for _, count in sorted_expansions
         ],
 
         "sec_color_labels": list(
@@ -178,23 +155,14 @@ def analytics_data(request):
         ),
 
         "subtype_labels": [
-            subtype
-            for subtype, _ in top_subtypes
+            subtype for subtype, _ in top_subtypes
         ],
         "subtype_data": [
-            count
-            for _, count in top_subtypes
+            count for _, count in top_subtypes
         ],
     }
 
-    cache.set(
-        cache_key,
-        data,
-        CACHE_TIMEOUT,
-    )
-
     return JsonResponse(data)
-
 
 def cards_by_name(request):
     """
@@ -203,8 +171,6 @@ def cards_by_name(request):
     Example:
         /api/cards/?name=Agumon
     """
-
-    maybe_refresh_cards()
 
     name = request.GET.get(
         "name",

@@ -16,6 +16,7 @@ import { Bar, Pie, Doughnut } from 'react-chartjs-2';
 
 import {
   COLOR_MAP,
+  DISTINCT_COLORS_15,
   getCardColors,
   getCardExpansion,
   getCardTypes,
@@ -596,7 +597,7 @@ export default function Dashboard() {
       <div className="digi-grid">
         <div className="digi-card">
           <div className="card-header">
-            CARD TYPES
+            CARD DISTRIBUTION
           </div>
 
           <div className="chart-container">
@@ -629,7 +630,7 @@ export default function Dashboard() {
 
         <div className="digi-card">
           <div className="card-header">
-            TOP 15 PRINTED NAMES
+            TOP 15 ORIGINAL CARD PRINTED NAMES
           </div>
 
           <div className="chart-container">
@@ -643,8 +644,7 @@ export default function Dashboard() {
                     label: 'Count',
                     data:
                       data.name_data || [],
-                    backgroundColor:
-                      '#ff6600',
+                    backgroundColor: DISTINCT_COLORS_15,
                   },
                 ],
               }}
@@ -693,7 +693,7 @@ export default function Dashboard() {
 
         <div className="digi-card">
           <div className="card-header">
-            SINGLE COLOR SPECTRUM
+            GENERAL COLOR SPECTRUM
           </div>
 
           <div className="chart-container">
@@ -726,7 +726,7 @@ export default function Dashboard() {
 
         <div className="digi-card">
           <div className="card-header">
-            TOP 10 MULTICOLOR HYBRIDS
+            TOP 10 MULTICOLOR
           </div>
 
           <div className="chart-container">
@@ -760,7 +760,7 @@ export default function Dashboard() {
 
         <div className="digi-card">
           <div className="card-header">
-            TOP 20 SUBTYPES & TRAITS
+            TOP 20 CARD TYPES
           </div>
 
           <div className="chart-container">
@@ -777,8 +777,7 @@ export default function Dashboard() {
                       data.subtype_data ||
                       [],
 
-                    backgroundColor:
-                      '#00f3ff',
+                    backgroundColor: DISTINCT_COLORS_15,
                   },
                 ],
               }}
@@ -807,7 +806,7 @@ export default function Dashboard() {
                       [],
 
                     backgroundColor:
-                      '#38bdf8',
+                      '#ffffff',
                   },
                 ],
               }}

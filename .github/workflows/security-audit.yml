@@ -2,7 +2,7 @@
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, develop ]
   pull_request:
     branches: [ master ]
   schedule:
@@ -15,14 +15,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 22
+          cache: 'pnpm'
 
       - name: Run Audit
-        run: npm audit --audit-level=moderate
+        run: pnpm audit --audit-level=moderate
 
   sast-scan:
     runs-on: ubuntu-latest

@@ -16,50 +16,48 @@ class DigimonCard(models.Model):
     rarity = models.CharField(
         max_length=64,
         blank=True,
-        default='',
+        default="",
     )
 
     card_type = models.CharField(
         max_length=255,
         blank=True,
-        default='',
+        default="",
         db_index=True,
     )
 
     color = models.CharField(
         max_length=255,
         blank=True,
-        default='',
+        default="",
         db_index=True,
     )
 
     card_level = models.CharField(
         max_length=32,
         blank=True,
-        default='',
+        default="",
     )
 
     play_cost = models.CharField(
         max_length=32,
         blank=True,
-        default='',
+        default="",
     )
 
     expansion = models.CharField(
         max_length=64,
         blank=True,
-        default='',
+        default="",
         db_index=True,
     )
 
     subtype = models.TextField(
         blank=True,
-        default='',
+        default="",
     )
 
-    # Keep the complete original card JSON.
-    # This means you don't lose fields just because the
-    # analytics code doesn't currently use them.
+    # Stores the raw JSON payload from GitHub
     data = models.JSONField(
         default=dict,
     )
@@ -73,7 +71,7 @@ class DigimonCard(models.Model):
     )
 
     class Meta:
-        ordering = ['card_number']
+        ordering = ["card_number"]
 
     def __str__(self):
-        return f'{self.card_number} - {self.name}'
+        return f"{self.card_number} - {self.name}"

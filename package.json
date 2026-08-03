@@ -1,4 +1,9 @@
 {
+  "name": "card-analyzer-dcg",
+  "version": "1.0.0",
+  "engines": {
+    "node": "22.x"
+  },
   "dependencies": {
     "chart.js": "^4.5.1",
     "react-chartjs-2": "^5.3.1"

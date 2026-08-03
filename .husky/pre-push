@@ -1,1 +1,1 @@
-npm audit --audit-level=high
+pnpm audit

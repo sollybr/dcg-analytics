@@ -1,32 +1,28 @@
-
-// Define the shape of the card data based on the API's varied schema
 export interface DigimonCard {
-  id?: string;
+  id?: string | number;
   cardNumber?: string;
-
   name?: {
     english?: string;
-    [key: string]: string | undefined;
-  };
-
+  } | string;
   color?: string | string[];
-  colors?: string[];
-
+  colors?: string | string[];
   booster?: string;
   setId?: string;
-  setNumber?: string;
   set?: string;
-
-  notes?: string;
+  setNumber?: string;
+  cardType?: string | string[];
+  type?: string | string[];
+  types?: string | string[];
+  level?: string | number | null;
+  cardLevel?: string | number | null;
   rarity?: string;
-  playCost?: string | number;
-
-  restrictions?: {
-    english?: string;
-    [key: string]: string | undefined;
-  };
-
-  [key: string]: any;
+  playCost?: string | number | null;
+  dp?: string | number | null;
+  form?: string;
+  attribute?: string;
+  effect?: string;
+  digivolveEffect?: string;
+  securityEffect?: string;
 }
 
 export const COLOR_MAP: Record<string, string> = {
@@ -40,192 +36,99 @@ export const COLOR_MAP: Record<string, string> = {
   Unknown: '#64748b',
 };
 
-export const DISTINCT_COLORS_15: string[] = [
-  '#FF355E',
-  '#FF6037',
-  '#FF9966',
-  '#FFCC33',
-  '#CCFF00',
-  '#66FF66',
-  '#50BFE6',
-  '#0099FF',
-  '#9C51B6',
-  '#FF00CC',
-  '#FF6080',
-  '#FF9E2C',
-  '#A7F432',
-  '#00E5FF',
-  '#B57EDC',
-];
-
 export const getCardColors = (
-  colorField?: string | string[]
+  cardOrColors: DigimonCard | string | string[] | undefined | null
 ): string[] => {
-  if (!colorField) {
+  let raw: string | string[] | undefined | null;
+
+  if (
+    typeof cardOrColors === 'object' &&
+    !Array.isArray(cardOrColors) &&
+    cardOrColors !== null
+  ) {
+    raw = cardOrColors.color || cardOrColors.colors;
+  } else {
+    raw = cardOrColors;
+  }
+
+  if (!raw) {
     return ['Unknown'];
   }
 
-  if (Array.isArray(colorField)) {
-    return colorField.length > 0
-      ? colorField
-      : ['Unknown'];
+  if (Array.isArray(raw)) {
+    return raw.map((color) => color.trim()).filter(Boolean);
   }
 
-  if (typeof colorField === 'string') {
-    const splitColors = colorField
+  if (typeof raw === 'string') {
+    return raw
       .split('/')
       .map((color) => color.trim())
       .filter(Boolean);
-
-    return splitColors.length > 0
-      ? splitColors
-      : ['Unknown'];
   }
 
   return ['Unknown'];
 };
 
-export const getCardExpansion = (
-  card: DigimonCard
-): string => {
-  const expansion =
-    card.booster ||
-    card.setId ||
-    card.setNumber ||
-    card.set;
-
-  if (expansion && expansion !== '-') {
-    return expansion;
-  }
-
-  if (
-    card.cardNumber &&
-    card.cardNumber.includes('-')
-  ) {
-    return card.cardNumber.split('-')[0];
-  }
-
-  return 'Unknown';
-};
-
-/**
- * Returns the card's `type` field.
- *
- * Example:
- * type: "Reptile/Dragon"
- *
- * returns:
- * ["Reptile", "Dragon"]
- */
-export const getCardTypes = (
-  card: DigimonCard
+export const getColors = (
+  colors: string[] | undefined | null
 ): string[] => {
-  if (
-    typeof card.type !== 'string' ||
-    !card.type ||
-    card.type === '-'
-  ) {
+  if (!Array.isArray(colors)) {
     return [];
   }
 
-  return card.type
-    .split('/')
-    .map((type: string) => type.trim())
-    .filter(
-      (type: string) =>
-        type.length > 0 &&
-        type !== '-'
-    );
+  return colors.map((label) => {
+    if (COLOR_MAP[label]) {
+      return COLOR_MAP[label];
+    }
+
+    if (typeof label === 'string' && label.includes('/')) {
+      const primary = label.split('/')[0].trim();
+      return COLOR_MAP[primary] || COLOR_MAP.Unknown;
+    }
+
+    return COLOR_MAP.Unknown;
+  });
+};
+
+export const getCardExpansion = (card: DigimonCard): string => {
+  return (
+    card.booster ||
+    card.setId ||
+    card.set ||
+    card.setNumber ||
+    'Unknown Set'
+  );
+};
+
+export const getCardTypes = (card: DigimonCard): string[] => {
+  const raw = card.cardType || card.type || card.types;
+
+  if (!raw) {
+    return [];
+  }
+
+  if (Array.isArray(raw)) {
+    return raw.map((type) => type.trim()).filter(Boolean);
+  }
+
+  if (typeof raw === 'string') {
+    return raw
+      .split('/')
+      .map((type) => type.trim())
+      .filter(Boolean);
+  }
+
+  return [];
 };
 
 export const getCardLevel = (
   card: DigimonCard
-): number | null => {
-  const levelKeyRegex =
-    /^(level|lv|stage|digimon[_\s]?lev(el)?)$/i;
+): string | null => {
+  const level = card.level ?? card.cardLevel;
 
-  for (const key of Object.keys(card)) {
-    if (!levelKeyRegex.test(key)) {
-      continue;
-    }
-
-    const value = card[key];
-
-    if (
-      value === undefined ||
-      value === null ||
-      value === '-' ||
-      value === ''
-    ) {
-      continue;
-    }
-
-    if (typeof value === 'number') {
-      return isNaN(value) ? null : value;
-    }
-
-    if (typeof value === 'string') {
-      const match = value.match(/([0-9]+)/);
-
-      if (match) {
-        const parsed = parseInt(match[1], 10);
-        return isNaN(parsed) ? null : parsed;
-      }
-    }
+  if (level === undefined || level === null || level === '-') {
+    return null;
   }
 
-  return null;
-};
-
-export const getCardSubtypes = (
-  card: DigimonCard
-): string[] => {
-  const subtypeKeyRegex =
-    /^(subtypes?|subtype|cardType|type)$/i;
-
-  const results = new Set<string>();
-
-  for (const key of Object.keys(card)) {
-    if (!subtypeKeyRegex.test(key)) {
-      continue;
-    }
-
-    const field = card[key];
-
-    if (!field) {
-      continue;
-    }
-
-    if (Array.isArray(field)) {
-      field.forEach((value: unknown) => {
-        if (typeof value !== 'string') {
-          return;
-        }
-
-        value.split('/').forEach((part) => {
-          const cleaned = part.trim();
-
-          if (
-            cleaned &&
-            cleaned !== '-'
-          ) {
-            results.add(cleaned);
-          }
-        });
-      });
-    } else if (typeof field === 'string') {
-      field.split('/').forEach((part) => {
-        const cleaned = part.trim();
-
-        if (
-          cleaned &&
-          cleaned !== '-'
-        ) {
-          results.add(cleaned);
-        }
-      });
-    }
-  }
-
-  return Array.from(results);
+  return String(level);
 };

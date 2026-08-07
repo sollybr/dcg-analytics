@@ -26,6 +26,7 @@ jobs:
           node-version: 22
 
       - name: Run Audit
+        working-directory: frontend
         run: pnpm audit --audit-level=moderate
 
   sast-scan:

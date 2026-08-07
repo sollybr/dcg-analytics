@@ -1,1 +1,1 @@
-pnpm audit
+pnpm --dir frontend audit --audit-level=moderate

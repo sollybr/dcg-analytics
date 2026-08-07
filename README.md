@@ -100,6 +100,7 @@ pip install -r requirements.txt
 Install the required frontend dependencies using `pnpm`:
 
 ```bash
+cd frontend
 pnpm install
 ```
 

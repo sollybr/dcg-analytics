@@ -1,11 +1,14 @@
 version: 2
 updates:
   - package-ecosystem: "npm"
-    directory: "/"
+    directory: "/frontend"
     schedule:
       interval: "weekly"
     groups:
       vulnerabilities:
         applies-to: "security-updates"
+        patterns:
+          - "*"
+      frontend-dependencies:
         patterns:
           - "*"

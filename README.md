@@ -104,6 +104,14 @@ cd frontend
 pnpm install
 ```
 
+Upon first local run or modifications to the frontend, (re-)build:
+
+```bash
+pnpm run build
+```
+
+The generated assets will be placed in the frontend build output directory configured by Vite.
+
 ### 6. Database Initialization and Data Synchronization
 
 To streamline setup, the application includes a custom management command that automatically runs database migrations and populates the database with card records.
@@ -114,7 +122,7 @@ Run the bootstrap command using the Vercel execution context so that it has acce
 npx vercel env run -- python manage.py bootstrap_db
 ```
 
-## Running the Application Locally
+### Running
 
 To run the monolithic development server locally, using Vercel's local routing to serve both the Django backend and Vite frontend:
 

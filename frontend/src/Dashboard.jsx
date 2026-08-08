@@ -49,92 +49,124 @@ ChartJS.register(
   ArcElement,
   PointElement,
   LineElement
-);
+  );
 
 ChartJS.defaults.color = '#7dd3fc';
 ChartJS.defaults.font.family =
-  "'Pixel Digivolve', monospace";
+"'Pixel Digivolve', monospace";
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const [selectedCardName, setSelectedCardName] =
-    useState(null);
+  useState(null);
 
   const [selectedCards, setSelectedCards] = useState([]);
   const [cardsLoading, setCardsLoading] =
-    useState(false);
+  useState(false);
   const [cardsError, setCardsError] = useState(null);
 
   const [selectedType, setSelectedType] = useState(null);
   const [typeCards, setTypeCards] = useState([]);
   const [typePage, setTypePage] = useState(1);
   const [hasMoreType, setHasMoreType] = useState(true);
+  const [typeCardsLoading, setTypeCardsLoading] = useState(false);
+  const [typeTotalCards, setTypeTotalCards] = useState(0);
   const observerTarget = useRef(null);
 
   useEffect(() => {
     fetchAnalytics()
-      .then((result) => {
-        setData(result);
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.error(
-          'Error fetching analytics:',
-          error
+    .then((result) => {
+      setData(result);
+      setLoading(false);
+    })
+    .catch((error) => {
+      console.error(
+        'Error fetching analytics:',
+        error
         );
-        setLoading(false);
-      });
+      setLoading(false);
+    });
   }, []);
 
   useEffect(() => {
-    console.log('selectedType changed:', selectedType);
-    console.log('typePage:', typePage);
-
     if (!selectedType) return;
 
     const loadTypeCards = async () => {
-        try {
-            console.log('Fetching:', selectedType, typePage);
+      setTypeCardsLoading(true);
 
-            const data = await fetchCardsByType(selectedType, typePage);
+      try {
+        console.log('Fetching:', selectedType, typePage);
 
-            console.log('Response:', data);
+        const data = await fetchCardsByType(
+          selectedType,
+          typePage
+          );
 
-            setTypeCards(prevCards => [...prevCards, ...data.cards]);
+        console.log('Response:', data);
 
-            if (typePage >= data.total_pages) {
-                setHasMoreType(false);
-            }
-        } catch (error) {
-            console.error('fetchCardsByType failed:', error);
+        setTypeTotalCards(data.total_count);
+
+        setTypeCards((prevCards) => [
+          ...prevCards,
+          ...data.cards,
+          ]);
+
+        if (typePage >= data.total_pages) {
+          setHasMoreType(false);
         }
+      } catch (error) {
+        console.error('fetchCardsByType failed:', error);
+      } finally {
+        setTypeCardsLoading(false);
+      }
     };
 
     loadTypeCards();
-}, [selectedType, typePage]);
+  }, [selectedType, typePage]);
 
   useEffect(() => {
-      const observer = new IntersectionObserver(
-          entries => {
-              if (entries[0].isIntersecting && hasMoreType) {
-                  setTypePage(prevPage => prevPage + 1);
-              }
-          },
-          { threshold: 1.0 }
-      );
+    if (
+      !selectedType ||
+      !observerTarget.current ||
+      !hasMoreType ||
+      typeCardsLoading
+      ) {
+      return;
+  }
 
-      if (observerTarget.current) {
-          observer.observe(observerTarget.current);
+  const observer = new IntersectionObserver(
+    (entries) => {
+      console.log(
+        'Observer:',
+        entries[0].isIntersecting,
+        'hasMore:',
+        hasMoreType,
+        'loading:',
+        typeCardsLoading
+        );
+
+      if (entries[0].isIntersecting) {
+        setTypePage((prevPage) => prevPage + 1);
       }
+    },
+    {
+      threshold: 0.1,
+    }
+    );
 
-      return () => {
-          if (observerTarget.current) {
-              observer.unobserve(observerTarget.current);
-          }
-      };
-  }, [observerTarget, hasMoreType]);
+  observer.observe(observerTarget.current);
+
+  return () => {
+    observer.disconnect();
+  };
+}, [
+  selectedType,
+  hasMoreType,
+  typeCardsLoading,
+  typeCards,
+  ]);
 
   const openCardName = async (name) => {
     setSelectedCardName(name);
@@ -147,14 +179,14 @@ export default function Dashboard() {
 
       setSelectedCards(
         Array.isArray(result.cards)
-          ? result.cards
-          : []
-      );
+        ? result.cards
+        : []
+        );
     } catch (error) {
       console.error(
         'Error fetching cards:',
         error
-      );
+        );
 
       setCardsError(error.message);
     } finally {
@@ -173,180 +205,181 @@ export default function Dashboard() {
     setTypeCards([]);
     setTypePage(1);
     setHasMoreType(true);
+    setTypeTotalCards(0);
   };
 
   if (loading || !data) {
     return (
       <div className="digi-loader">
-        <div className="digi-spinner"></div>
+      <div className="digi-spinner"></div>
 
-        <p className="digi-loading-text">
-          CONNECTING TO DIGITAL WORLD DATABASE...
-        </p>
+      <p className="digi-loading-text">
+      CONNECTING TO DIGITAL WORLD DATABASE...
+      </p>
       </div>
-    );
+      );
   }
 
   if (selectedCardName) {
     return (
       <CardDetailView
-        selectedCardName={selectedCardName}
-        selectedCards={selectedCards}
-        cardsLoading={cardsLoading}
-        cardsError={cardsError}
-        totalCards={data.total_cards}
-        onClose={closeCardName}
+      selectedCardName={selectedCardName}
+      selectedCards={selectedCards}
+      cardsLoading={cardsLoading}
+      cardsError={cardsError}
+      totalCards={data.total_cards}
+      onClose={closeCardName}
       />
-    );
+      );
   }
 
   if (selectedType) {
     return (
-        <CardTypeDetailView
-            selectedType={selectedType}
-            typeCards={typeCards}
-            cardsLoading={false}
-            cardsError={null}
-            totalCards={typeCards.length}
-            hasMoreType={hasMoreType}
-            observerTarget={observerTarget}
-            onClose={closeCardType}
-        />
-    );
+      <CardTypeDetailView
+      selectedType={selectedType}
+      typeCards={typeCards}
+      cardsLoading={typeCardsLoading}
+      cardsError={null}
+      totalCards={typeTotalCards}
+      hasMoreType={hasMoreType}
+      observerTarget={observerTarget}
+      onClose={closeCardType}
+      />
+      );
   }
 
   return (
     <div className="digi-dashboard">
-      <DashboardHeader
-        totalCards={data.total_cards}
-      />
+    <DashboardHeader
+    totalCards={data.total_cards}
+    />
 
-      <div className="digi-grid">
-        <AnalyticsChart title="CARD DISTRIBUTION">
-          <Pie
-            data={{
-              labels: data.type_labels || [],
-              datasets: [
-                {
-                  data: data.type_data || [],
-                  backgroundColor: [
-                    '#00f3ff',
-                    '#ff6600',
-                    '#a855f7',
-                    '#22c55e',
-                  ],
-                },
-              ],
-            }}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-            }}
-          />
-        </AnalyticsChart>
+    <div className="digi-grid">
+    <AnalyticsChart title="CARD DISTRIBUTION">
+    <Pie
+    data={{
+      labels: data.type_labels || [],
+      datasets: [
+      {
+        data: data.type_data || [],
+        backgroundColor: [
+          '#00f3ff',
+          '#ff6600',
+          '#a855f7',
+          '#22c55e',
+          ],
+      },
+      ],
+    }}
+    options={{
+      responsive: true,
+      maintainAspectRatio: false,
+    }}
+    />
+    </AnalyticsChart>
 
-        <AnalyticsChart title="TOP 15 ORIGINAL CARD PRINTED NAMES">
-          <Bar
-            data={{
-              labels: data.name_labels || [],
-              datasets: createInteractiveDatasets(
-                data.name_labels,
-                data.name_data,
-                DISTINCT_COLORS_15
-              ),
-            }}
-            options={{
-              ...stackedDarkOptions,
+    <AnalyticsChart title="TOP 15 ORIGINAL CARD PRINTED NAMES">
+    <Bar
+    data={{
+      labels: data.name_labels || [],
+      datasets: createInteractiveDatasets(
+        data.name_labels,
+        data.name_data,
+        DISTINCT_COLORS_15
+        ),
+    }}
+    options={{
+      ...stackedDarkOptions,
 
-              onClick: (_event, elements) => {
-                if (
-                  !elements ||
-                  elements.length === 0
-                ) {
-                  return;
-                }
+      onClick: (_event, elements) => {
+        if (
+          !elements ||
+          elements.length === 0
+          ) {
+          return;
+      }
 
-                const index = elements[0].index;
-                const name =
-                  data.name_labels?.[index];
+      const index = elements[0].index;
+      const name =
+      data.name_labels?.[index];
 
-                if (name) {
-                  openCardName(name);
-                }
-              },
+      if (name) {
+        openCardName(name);
+      }
+    },
 
-              onHover: (
-                event,
-                elements
-              ) => {
-                if (event?.native?.target) {
-                  event.native.target.style.cursor =
-                    elements?.length
-                      ? 'pointer'
-                      : 'default';
-                }
-              },
-            }}
-          />
-        </AnalyticsChart>
+    onHover: (
+      event,
+      elements
+      ) => {
+      if (event?.native?.target) {
+        event.native.target.style.cursor =
+        elements?.length
+        ? 'pointer'
+        : 'default';
+      }
+    },
+  }}
+  />
+  </AnalyticsChart>
 
-        <AnalyticsChart title="GENERAL COLOR SPECTRUM">
-          <Doughnut
-            data={{
-              labels:
-                data.single_color_labels || [],
-              datasets: [
-                {
-                  data:
-                    data.single_color_data || [],
-                  backgroundColor: getColors(
-                    data.single_color_labels
-                  ),
-                },
-              ],
-            }}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-            }}
-          />
-        </AnalyticsChart>
+  <AnalyticsChart title="GENERAL COLOR SPECTRUM">
+  <Doughnut
+  data={{
+    labels:
+    data.single_color_labels || [],
+    datasets: [
+    {
+      data:
+      data.single_color_data || [],
+      backgroundColor: getColors(
+        data.single_color_labels
+        ),
+    },
+    ],
+  }}
+  options={{
+    responsive: true,
+    maintainAspectRatio: false,
+  }}
+  />
+  </AnalyticsChart>
 
-        <AnalyticsChart title="TOP 10 MULTICOLOR">
-          <Bar
-            data={{
-              labels:
-                data.multicolor_labels || [],
-              datasets: createInteractiveDatasets(
-                data.multicolor_labels,
-                data.multicolor_data,
-                getColors
-              ),
-            }}
-            options={{
-              ...stackedDarkOptions,
-              indexAxis: 'y',
-            }}
-          />
-        </AnalyticsChart>
+  <AnalyticsChart title="TOP 10 MULTICOLOR">
+  <Bar
+  data={{
+    labels:
+    data.multicolor_labels || [],
+    datasets: createInteractiveDatasets(
+      data.multicolor_labels,
+      data.multicolor_data,
+      getColors
+      ),
+  }}
+  options={{
+    ...stackedDarkOptions,
+    indexAxis: 'y',
+  }}
+  />
+  </AnalyticsChart>
 
-        <AnalyticsChart title="TOP 20 CARD TYPES">
-          <Bar
-            data={{
-              labels:
-                data.subtype_labels || [],
-              datasets: createInteractiveDatasets(
-                data.subtype_labels,
-                data.subtype_data,
-                DISTINCT_COLORS_15
-              ),
-            }}
-            options={{
-                ...stackedDarkOptions,
-                onClick: (event, elements, chart) => {
-    console.log('Chart clicked:', elements);
+  <AnalyticsChart title="TOP 20 CARD TYPES">
+  <Bar
+  data={{
+    labels:
+    data.subtype_labels || [],
+    datasets: createInteractiveDatasets(
+      data.subtype_labels,
+      data.subtype_data,
+      DISTINCT_COLORS_15
+      ),
+  }}
+  options={{
+    ...stackedDarkOptions,
+    onClick: (event, elements, chart) => {
+      console.log('Chart clicked:', elements);
 
-    if (elements.length > 0) {
+      if (elements.length > 0) {
         const dataIndex = elements[0].index;
         const clickedType = chart.data.labels?.[dataIndex];
 
@@ -358,62 +391,62 @@ export default function Dashboard() {
         setTypeCards([]);
         setTypePage(1);
         setHasMoreType(true);
-    }
-},
-                onHover: (
-                  event,
-                  elements
-                ) => {
-                  if (event?.native?.target) {
-                    event.native.target.style.cursor =
-                      elements?.length
-                        ? 'pointer'
-                        : 'default';
-                  }
-                },
-            }}
-          />
-        </AnalyticsChart>
+      }
+    },
+    onHover: (
+      event,
+      elements
+      ) => {
+      if (event?.native?.target) {
+        event.native.target.style.cursor =
+        elements?.length
+        ? 'pointer'
+        : 'default';
+      }
+    },
+  }}
+  />
+  </AnalyticsChart>
 
-        <AnalyticsChart title="EXPANSIONS DISTRIBUTION">
-          <Bar
-            data={{
-              labels:
-                data.expansion_labels || [],
-              datasets: createExpansionTypeDatasets(
-                data.expansion_labels,
-                data.expansion_data,
-                data.expansion_types
-              ),
-            }}
-            options={stackedDarkOptions}
-          />
-        </AnalyticsChart>
+  <AnalyticsChart title="EXPANSIONS DISTRIBUTION">
+  <Bar
+  data={{
+    labels:
+    data.expansion_labels || [],
+    datasets: createExpansionTypeDatasets(
+      data.expansion_labels,
+      data.expansion_data,
+      data.expansion_types
+      ),
+  }}
+  options={stackedDarkOptions}
+  />
+  </AnalyticsChart>
 
-        <AnalyticsChart title="SECRET RARE (SEC) SPECTRUM">
-          <Pie
-            data={{
-              labels:
-                data.sec_color_labels || [],
-              datasets: [
-                {
-                  data:
-                    data.sec_color_data || [],
-                  backgroundColor: getColors(
-                    data.sec_color_labels
-                  ),
-                },
-              ],
-            }}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-            }}
-          />
-        </AnalyticsChart>
-      </div>
+  <AnalyticsChart title="SECRET RARE (SEC) SPECTRUM">
+  <Pie
+  data={{
+    labels:
+    data.sec_color_labels || [],
+    datasets: [
+    {
+      data:
+      data.sec_color_data || [],
+      backgroundColor: getColors(
+        data.sec_color_labels
+        ),
+    },
+    ],
+  }}
+  options={{
+    responsive: true,
+    maintainAspectRatio: false,
+  }}
+  />
+  </AnalyticsChart>
+  </div>
 
-      <DashboardFooter />
-    </div>
+  <DashboardFooter />
+  </div>
   );
 }

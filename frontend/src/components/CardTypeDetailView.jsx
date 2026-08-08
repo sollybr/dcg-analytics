@@ -41,10 +41,14 @@ export default function CardTypeDetailView({
                         </span>
                     </h2>
 
-                    {!cardsLoading && !cardsError && (
-                        <p>
-                            {typeCards.length} CARDS LOADED
-                        </p>
+                    {cardsLoading && typeCards.length === 0 && (
+                        <div className="digi-loader">
+                            <div className="digi-spinner"></div>
+
+                            <p className="digi-loading-text">
+                                LOADING CARD DATA...
+                            </p>
+                        </div>
                     )}
                 </div>
 
@@ -76,47 +80,49 @@ export default function CardTypeDetailView({
                         </div>
                     )}
 
-                {!cardsLoading &&
-                    !cardsError &&
-                    typeCards.length > 0 && (
-                        <div className="card-list-container">
-                            {typeCards.map((card, index) => (
-                                <CardDetailItem
-                                    key={`${card.id}-${index}`}
-                                    card={card}
-                                    index={index}
-                                    selectedCardName={card.name?.english}
-                                />
-                            ))}
+                {!cardsError && typeCards.length > 0 && (
+                    <div className="card-list-container">
+                        {typeCards.map((card, index) => (
+                            <CardDetailItem
+                                key={`${card.id}-${index}`}
+                                card={card}
+                                index={index}
+                                selectedCardName={card.name?.english}
+                            />
+                        ))}
 
-                            {hasMoreType && (
-                                <div
-                                    ref={observerTarget}
-                                    className="loading-indicator"
-                                    style={{
-                                        textAlign: 'center',
-                                        padding: '20px',
-                                        color: '#00f3ff',
-                                    }}
-                                >
-                                    <p>SCANNING FOR MORE...</p>
-                                </div>
-                            )}
+                        {hasMoreType && (
+                            <div
+                                ref={observerTarget}
+                                className="loading-indicator"
+                                style={{
+                                    textAlign: 'center',
+                                    padding: '20px',
+                                    color: '#00f3ff',
+                                }}
+                            >
+                                <p>
+                                    {cardsLoading
+                                        ? 'LOADING MORE...'
+                                        : 'SCANNING FOR MORE...'}
+                                </p>
+                            </div>
+                        )}
 
-                            {!hasMoreType && (
-                                <div
-                                    className="end-of-results"
-                                    style={{
-                                        textAlign: 'center',
-                                        padding: '20px',
-                                        color: '#666',
-                                    }}
-                                >
-                                    <p>END OF DATALOG.</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                        {!hasMoreType && (
+                            <div
+                                className="end-of-results"
+                                style={{
+                                    textAlign: 'center',
+                                    padding: '20px',
+                                    color: '#666',
+                                }}
+                            >
+                                <p>END OF DATALOG.</p>
+                            </div>
+                        )}
+                    </div>
+                )}
             </main>
 
             <footer className="digi-footer">

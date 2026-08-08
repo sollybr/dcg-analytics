@@ -81,7 +81,7 @@ export default function CardTypeDetailView({
                     )}
 
                 {!cardsError && typeCards.length > 0 && (
-                    <div className="card-list-container">
+                    <div className="card-type-list-container">
                         {typeCards.map((card, index) => (
                             <CardDetailItem
                                 key={`${card.id}-${index}`}
@@ -94,12 +94,7 @@ export default function CardTypeDetailView({
                         {hasMoreType && (
                             <div
                                 ref={observerTarget}
-                                className="loading-indicator"
-                                style={{
-                                    textAlign: 'center',
-                                    padding: '20px',
-                                    color: '#00f3ff',
-                                }}
+                                className="card-type-loading-indicator"
                             >
                                 <p>
                                     {cardsLoading
@@ -110,14 +105,7 @@ export default function CardTypeDetailView({
                         )}
 
                         {!hasMoreType && (
-                            <div
-                                className="end-of-results"
-                                style={{
-                                    textAlign: 'center',
-                                    padding: '20px',
-                                    color: '#666',
-                                }}
-                            >
+                            <div className="card-type-end-of-results">
                                 <p>END OF DATALOG.</p>
                             </div>
                         )}

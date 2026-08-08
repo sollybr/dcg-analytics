@@ -175,6 +175,53 @@ body {
   font-size: 0.9rem;
 }
 
+.card-type-list-container {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 20px;
+  padding: 20px 0;
+  width: 100%;
+}
+
+.card-type-loading-indicator,
+.card-type-end-of-results {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 20px;
+}
+
+.card-type-loading-indicator {
+  color: #00f3ff;
+}
+
+.card-type-end-of-results {
+  color: #666;
+}
+
+@media (max-width: 1400px) {
+  .card-type-list-container {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 1100px) {
+  .card-type-list-container {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 800px) {
+  .card-type-list-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 500px) {
+  .card-type-list-container {
+    grid-template-columns: 1fr;
+  }
+}
+
 .digi-footer {
   margin-top: 40px;
   padding-top: 20px;

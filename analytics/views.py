@@ -8,7 +8,18 @@ from django.http import JsonResponse
 from .card_sync import sync_cards
 from .models import DigimonCard
 
-# New Helper Function for Expansion Prefix
+
+def natural_sort_key(item):
+    """
+    Sorts strings containing numbers logically (e.g., BT1, BT2, BT10).
+    """
+    expansion_name = item[0]
+    return [
+        int(text) if text.isdigit() else text.lower() 
+        for text in re.split(r'(\d+)', expansion_name)
+    ]
+
+
 def get_expansion_type(card_number):
     if not card_number:
         return "Other"
@@ -117,7 +128,7 @@ def analytics_data(request):
 
     sorted_expansions = sorted(
         expansion_counter.items(),
-        key=lambda item: item[0],
+        key=natural_sort_key,
     )
 
     expansion_labels = [

@@ -1,5 +1,3 @@
-import React, { useEffect, useState } from 'react';
-
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -30,15 +28,14 @@ import {
   stackedDarkOptions,
 } from './chartUtils';
 
-import {
-  fetchAnalytics,
-  fetchCardsByName,
-} from './api';
+import { fetchAnalytics, fetchCardsByName, fetchCardsByType } from './api';
+import { useState, useEffect, useRef } from 'react';
 
 import AnalyticsChart from './components/AnalyticsChart';
-import CardDetailView from './components/CardDetailView';
-import DashboardFooter from './components/DashboardFooter';
 import DashboardHeader from './components/DashboardHeader';
+import DashboardFooter from './components/DashboardFooter';
+import CardDetailView from './components/CardDetailView';
+import CardTypeDetailView from './components/CardTypeDetailView';
 
 import './Dashboard.css';
 
@@ -70,6 +67,12 @@ export default function Dashboard() {
     useState(false);
   const [cardsError, setCardsError] = useState(null);
 
+  const [selectedType, setSelectedType] = useState(null);
+  const [typeCards, setTypeCards] = useState([]);
+  const [typePage, setTypePage] = useState(1);
+  const [hasMoreType, setHasMoreType] = useState(true);
+  const observerTarget = useRef(null);
+
   useEffect(() => {
     fetchAnalytics()
       .then((result) => {
@@ -84,6 +87,54 @@ export default function Dashboard() {
         setLoading(false);
       });
   }, []);
+
+  useEffect(() => {
+    console.log('selectedType changed:', selectedType);
+    console.log('typePage:', typePage);
+
+    if (!selectedType) return;
+
+    const loadTypeCards = async () => {
+        try {
+            console.log('Fetching:', selectedType, typePage);
+
+            const data = await fetchCardsByType(selectedType, typePage);
+
+            console.log('Response:', data);
+
+            setTypeCards(prevCards => [...prevCards, ...data.cards]);
+
+            if (typePage >= data.total_pages) {
+                setHasMoreType(false);
+            }
+        } catch (error) {
+            console.error('fetchCardsByType failed:', error);
+        }
+    };
+
+    loadTypeCards();
+}, [selectedType, typePage]);
+
+  useEffect(() => {
+      const observer = new IntersectionObserver(
+          entries => {
+              if (entries[0].isIntersecting && hasMoreType) {
+                  setTypePage(prevPage => prevPage + 1);
+              }
+          },
+          { threshold: 1.0 }
+      );
+
+      if (observerTarget.current) {
+          observer.observe(observerTarget.current);
+      }
+
+      return () => {
+          if (observerTarget.current) {
+              observer.unobserve(observerTarget.current);
+          }
+      };
+  }, [observerTarget, hasMoreType]);
 
   const openCardName = async (name) => {
     setSelectedCardName(name);
@@ -117,6 +168,13 @@ export default function Dashboard() {
     setCardsError(null);
   };
 
+  const closeCardType = () => {
+    setSelectedType(null);
+    setTypeCards([]);
+    setTypePage(1);
+    setHasMoreType(true);
+  };
+
   if (loading || !data) {
     return (
       <div className="digi-loader">
@@ -139,6 +197,21 @@ export default function Dashboard() {
         totalCards={data.total_cards}
         onClose={closeCardName}
       />
+    );
+  }
+
+  if (selectedType) {
+    return (
+        <CardTypeDetailView
+            selectedType={selectedType}
+            typeCards={typeCards}
+            cardsLoading={false}
+            cardsError={null}
+            totalCards={typeCards.length}
+            hasMoreType={hasMoreType}
+            observerTarget={observerTarget}
+            onClose={closeCardType}
+        />
     );
   }
 
@@ -268,7 +341,37 @@ export default function Dashboard() {
                 DISTINCT_COLORS_15
               ),
             }}
-            options={stackedDarkOptions}
+            options={{
+                ...stackedDarkOptions,
+                onClick: (event, elements, chart) => {
+    console.log('Chart clicked:', elements);
+
+    if (elements.length > 0) {
+        const dataIndex = elements[0].index;
+        const clickedType = chart.data.labels?.[dataIndex];
+
+        console.log('Clicked type:', clickedType);
+
+        if (!clickedType) return;
+
+        setSelectedType(clickedType);
+        setTypeCards([]);
+        setTypePage(1);
+        setHasMoreType(true);
+    }
+},
+                onHover: (
+                  event,
+                  elements
+                ) => {
+                  if (event?.native?.target) {
+                    event.native.target.style.cursor =
+                      elements?.length
+                        ? 'pointer'
+                        : 'default';
+                  }
+                },
+            }}
           />
         </AnalyticsChart>
 

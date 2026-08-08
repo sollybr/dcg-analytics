@@ -104,7 +104,7 @@ cd frontend
 pnpm install
 ```
 
-Upon first local run or modifications to the frontend, (re-)build:
+**Still in the frontend folder**, upon first local run or modifications to the frontend, (re-)build:
 
 ```bash
 pnpm run build
@@ -116,7 +116,7 @@ The generated assets will be placed in the frontend build output directory confi
 
 To streamline setup, the application includes a custom management command that automatically runs database migrations and populates the database with card records.
 
-Run the bootstrap command using the Vercel execution context so that it has access to the configured environment variables:
+**In the project's root directory**, run the bootstrap command using the Vercel execution context so that it has access to the configured environment variables:
 
 ```bash
 npx vercel env run -- python manage.py bootstrap_db

@@ -241,3 +241,33 @@ def cards_by_name(request):
     )
 
     return JsonResponse(data)
+
+
+from django.core.paginator import Paginator
+
+def cards_by_type(request):
+    """
+    Return paginated cards matching a specific subtype.
+    Example: /api/cards-by-type/?type=Vaccine&page=1
+    """
+    card_type = request.GET.get("type", "").strip()
+    page_number = int(request.GET.get("page", 1))
+
+    if not card_type:
+        return JsonResponse({"error": "Missing type parameter."}, status=400)
+
+    cards = DigimonCard.objects.filter(subtype__icontains=card_type).order_by("card_number")
+
+    # Paginate by 25 cards per request
+    paginator = Paginator(cards, 25)
+    page_obj = paginator.get_page(page_number)
+
+    data = {
+        "type": card_type,
+        "total_count": paginator.count,
+        "total_pages": paginator.num_pages,
+        "current_page": page_obj.number,
+        "cards": [card.data for card in page_obj.object_list],
+    }
+    
+    return JsonResponse(data)

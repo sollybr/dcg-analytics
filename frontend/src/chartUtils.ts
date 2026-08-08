@@ -46,6 +46,53 @@ export const createInteractiveDatasets = (
   });
 };
 
+export const createExpansionTypeDatasets = (
+  labels = [],
+  dataArray = [],
+  expansionTypes = []
+) => {
+  if (
+    !Array.isArray(labels) ||
+    !Array.isArray(dataArray) ||
+    !Array.isArray(expansionTypes)
+  ) {
+    return [];
+  }
+
+  const grouped = {};
+
+  labels.forEach((label, index) => {
+    const type = expansionTypes[index] || 'Other';
+
+    if (!grouped[type]) {
+      grouped[type] = {
+        labels: [],
+        data: [],
+      };
+    }
+
+    grouped[type].labels.push(label);
+    grouped[type].data.push(dataArray[index]);
+  });
+
+  return Object.entries(grouped).map(
+    ([type, group], index) => ({
+      label: type,
+      data: labels.map((label, i) => {
+        const groupIndex = group.labels.indexOf(label);
+
+        return groupIndex === -1
+          ? null
+          : group.data[groupIndex];
+      }),
+      backgroundColor:
+        DISTINCT_COLORS_15[
+          index % DISTINCT_COLORS_15.length
+        ],
+    })
+  );
+};
+
 export const darkOptions = {
   responsive: true,
   maintainAspectRatio: false,

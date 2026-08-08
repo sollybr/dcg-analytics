@@ -26,6 +26,7 @@ import {
 import {
   DISTINCT_COLORS_15,
   createInteractiveDatasets,
+  createExpansionTypeDatasets,
   stackedDarkOptions,
 } from './chartUtils';
 
@@ -276,10 +277,10 @@ export default function Dashboard() {
             data={{
               labels:
                 data.expansion_labels || [],
-              datasets: createInteractiveDatasets(
+              datasets: createExpansionTypeDatasets(
                 data.expansion_labels,
                 data.expansion_data,
-                DISTINCT_COLORS_15
+                data.expansion_types
               ),
             }}
             options={stackedDarkOptions}

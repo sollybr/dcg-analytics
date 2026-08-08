@@ -1,5 +1,5 @@
 import os
-
+import re
 from collections import Counter
 
 from django.core.cache import cache
@@ -8,25 +8,28 @@ from django.http import JsonResponse
 from .card_sync import sync_cards
 from .models import DigimonCard
 
+# New Helper Function for Expansion Prefix
+def get_expansion_type(card_number):
+    if not card_number:
+        return "Other"
+    match = re.match(r'^([A-Z]+)', card_number)
+    return match.group(1) if match else "Other"
+
 
 def sync_cards_view(request):
-    # Retrieve the secret key set in Vercel environment variables
     expected_token = os.environ.get("CRON_SECRET") or os.environ.get("CARD_SYNC_TOKEN")
 
-    # If no secret is configured on the server, block access by default
     if not expected_token:
         return JsonResponse(
             {"error": "Server cron secret is not configured."},
             status=500
         )
 
-    # 1. Check standard Vercel Cron Authorization header ("Bearer <token>")
     auth_header = request.headers.get("Authorization", "")
     token_from_header = ""
     if auth_header.startswith("Bearer "):
         token_from_header = auth_header.split("Bearer ")[1].strip()
 
-    # 2. Check fallback custom header or query string (useful for manual debugging/curl)
     supplied_token = (
         token_from_header or 
         request.headers.get("X-Card-Sync-Token") or 
@@ -39,7 +42,6 @@ def sync_cards_view(request):
             status=403
         )
 
-    # Token is valid -> execute synchronization
     try:
         result = sync_cards()
         return JsonResponse(result, status=200)
@@ -60,6 +62,7 @@ def analytics_data(request):
     expansion_counter = Counter()
     sec_color_counter = Counter()
     subtype_counter = Counter()
+    expansion_types = {}
 
     for card in cards:
         card_type = card.card_type
@@ -79,6 +82,10 @@ def analytics_data(request):
 
         expansion = card.expansion or "Other"
         expansion_counter[expansion] += 1
+
+        # Use helper function to map the expansion type
+        expansion_type = get_expansion_type(card.card_number)
+        expansion_types[expansion] = expansion_type
 
         rarity = str(card.rarity).upper()
 
@@ -113,6 +120,14 @@ def analytics_data(request):
         key=lambda item: item[0],
     )
 
+    expansion_labels = [
+        expansion for expansion, _ in sorted_expansions
+    ]
+
+    expansion_data = [
+        count for _, count in sorted_expansions
+    ]
+
     data = {
         "total_cards": cards.count(),
 
@@ -140,11 +155,13 @@ def analytics_data(request):
             count for _, count in top_multicolors
         ],
 
-        "expansion_labels": [
-            expansion for expansion, _ in sorted_expansions
-        ],
-        "expansion_data": [
-            count for _, count in sorted_expansions
+        "expansion_labels": expansion_labels,
+        "expansion_data": expansion_data,
+
+        # Corrected Key Name for React mapping
+        "expansion_types": [
+            expansion_types.get(expansion, "Other")
+            for expansion in expansion_labels
         ],
 
         "sec_color_labels": list(
@@ -163,15 +180,12 @@ def analytics_data(request):
     }
 
     return JsonResponse(data)
+    
 
 def cards_by_name(request):
     """
     Return all cards with a given English name.
-
-    Example:
-        /api/cards/?name=Agumon
     """
-
     name = request.GET.get(
         "name",
         "",

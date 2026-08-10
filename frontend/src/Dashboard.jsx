@@ -36,6 +36,7 @@ import DashboardHeader from './components/DashboardHeader';
 import DashboardFooter from './components/DashboardFooter';
 import CardDetailView from './components/CardDetailView';
 import CardTypeDetailView from './components/CardTypeDetailView';
+import AdvancedStatisticsView from './components/AdvancedStatisticsView';
 
 import './Dashboard.css';
 
@@ -58,6 +59,8 @@ ChartJS.defaults.font.family =
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const [activeScreen, setActiveScreen] = useState('home');
 
   const [selectedCardName, setSelectedCardName] =
   useState(null);
@@ -248,12 +251,36 @@ export default function Dashboard() {
       );
   }
 
+  if (activeScreen === 'advanced') {
+      return (
+          <AdvancedStatisticsView
+              onClose={() => setActiveScreen('home')}
+          />
+      );
+  }
+
   return (
     <div className="digi-dashboard">
     <DashboardHeader
     totalCards={data.total_cards}
     />
+    <div className="digi-dashboard-menu">
+        <button
+            type="button"
+            className="digi-menu-button active"
+            onClick={() => setActiveScreen('home')}
+        >
+            HOME
+        </button>
 
+        <button
+            type="button"
+            className="digi-menu-button"
+            onClick={() => setActiveScreen('advanced')}
+        >
+            ADVANCED STATISTICS
+        </button>
+    </div>
     <div className="digi-grid">
     <AnalyticsChart title="CARD DISTRIBUTION">
     <Pie

@@ -79,7 +79,7 @@ export default function Dashboard() {
   const observerTarget = useRef(null);
 
   useEffect(() => {
-    fetchAnalytics(['P', 'ST'], ['Lesser'])
+    fetchAnalytics({ excludeExpansions: ['P', 'ST'], excludeTypes: ['Lesser'] })
     .then((result) => {
       setData(result);
       setLoading(false);

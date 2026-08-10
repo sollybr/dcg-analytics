@@ -1,22 +1,11 @@
-export async function fetchAnalytics(excludeExpansions = [], excludeTypes = []) {
-    let url = '/api/analytics/';
-    
-    const params = new URLSearchParams();
+﻿import { ANALYTICS_FILTERS } from './filters';
+import { buildQueryParams } from './queryBuilder';
 
-    // Append expansions if provided
-    if (excludeExpansions && excludeExpansions.length > 0) {
-        params.append('exclude_exp', excludeExpansions.join(','));
-    }
-
-    // Append types/subtypes if provided
-    if (excludeTypes && excludeTypes.length > 0) {
-        params.append('exclude_type', excludeTypes.join(','));
-    }
-
-    // If any parameters exist, attach them to the URL
-    if (Array.from(params.keys()).length > 0) {
-        url += `?${params.toString()}`;
-    }
+export async function fetchAnalytics(filters = {}) {
+    const params = buildQueryParams(ANALYTICS_FILTERS, filters);
+    const url = params.toString()
+        ? `/api/analytics/?${params.toString()}`
+        : '/api/analytics/';
 
     const response = await fetch(url);
 

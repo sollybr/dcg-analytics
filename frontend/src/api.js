@@ -1,11 +1,20 @@
-export async function fetchAnalytics(excludeExpansions = []) {
+export async function fetchAnalytics(excludeExpansions = [], excludeTypes = []) {
     let url = '/api/analytics/';
     
-    // If exclusion prefixes are provided, append them as a query parameter
+    const params = new URLSearchParams();
+
+    // Append expansions if provided
     if (excludeExpansions && excludeExpansions.length > 0) {
-        const params = new URLSearchParams({
-            exclude_exp: excludeExpansions.join(','),
-        });
+        params.append('exclude_exp', excludeExpansions.join(','));
+    }
+
+    // Append types/subtypes if provided
+    if (excludeTypes && excludeTypes.length > 0) {
+        params.append('exclude_type', excludeTypes.join(','));
+    }
+
+    // If any parameters exist, attach them to the URL
+    if (Array.from(params.keys()).length > 0) {
         url += `?${params.toString()}`;
     }
 

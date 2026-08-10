@@ -159,14 +159,16 @@ class CardAnalyticsEngine:
             "sec_color_data": list(counter.values()),
         }
 
-    def get_subtypes(self, limit=20):
+    def get_subtypes(self, limit=20, exclude_subtypes=None):
+        exclude_subtypes = [s.lower() for s in (exclude_subtypes or [])]
         counter = Counter()
         for c in self.cards:
             raw_subtype = c.subtype
             if raw_subtype:
                 for val in raw_subtype.split("/"):
                     cleaned = val.strip()
-                    if cleaned and cleaned != "-":
+                    # Only count if it's valid and NOT in the exclusion list
+                    if cleaned and cleaned != "-" and cleaned.lower() not in exclude_subtypes:
                         counter[cleaned] += 1
                         
         top_subtypes = counter.most_common(limit)
@@ -188,12 +190,19 @@ def analytics_data(request):
     exclude_header = request.headers.get("X-Exclude-Charts", "")
     excluded = [item.strip().lower() for item in exclude_header.split(",")] if exclude_header else []
     
-    # Check for data filters in URL query parameters (Data config)
-    # Example: /api/analytics/?exclude_exp=P,ST
+    # Check for expansion filters
     exclude_exp_param = request.GET.get("exclude_exp", "")
     excluded_expansions = [
         item.strip().upper() 
         for item in exclude_exp_param.split(",") 
+        if item.strip()
+    ]
+
+    # Check for subtype/trait filters (NEW)
+    exclude_type_param = request.GET.get("exclude_type", "")
+    excluded_types = [
+        item.strip() 
+        for item in exclude_type_param.split(",") 
         if item.strip()
     ]
     
@@ -207,14 +216,14 @@ def analytics_data(request):
         data.update(engine.get_colors())
         
     if "expansions" not in excluded:
-        # Pass the filter list into the method
         data.update(engine.get_expansions(exclude_prefixes=excluded_expansions))
         
     if "sec_colors" not in excluded:
         data.update(engine.get_sec_colors())
         
     if "subtypes" not in excluded:
-        data.update(engine.get_subtypes())
+        # Pass the filter list into the method
+        data.update(engine.get_subtypes(exclude_subtypes=excluded_types))
 
     return JsonResponse(data)  
 

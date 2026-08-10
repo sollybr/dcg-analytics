@@ -1,6 +1,15 @@
+export async function fetchAnalytics(excludeExpansions = []) {
+    let url = '/api/analytics/';
+    
+    // If exclusion prefixes are provided, append them as a query parameter
+    if (excludeExpansions && excludeExpansions.length > 0) {
+        const params = new URLSearchParams({
+            exclude_exp: excludeExpansions.join(','),
+        });
+        url += `?${params.toString()}`;
+    }
 
-export async function fetchAnalytics() {
-    const response = await fetch('/api/analytics/');
+    const response = await fetch(url);
 
     if (!response.ok) {
         throw new Error(`Analytics API returned ${response.status}`);

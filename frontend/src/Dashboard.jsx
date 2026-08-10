@@ -79,7 +79,7 @@ export default function Dashboard() {
   const observerTarget = useRef(null);
 
   useEffect(() => {
-    fetchAnalytics()
+    fetchAnalytics(['P', 'ST'])
     .then((result) => {
       setData(result);
       setLoading(false);

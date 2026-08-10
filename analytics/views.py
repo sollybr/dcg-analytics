@@ -70,136 +70,153 @@ def sync_cards_view(request):
 
 CACHE_TIMEOUT = 60 * 60 * 6
 
+class CardAnalyticsEngine:
+    """
+    Encapsulates metric generation so they can be toggled on or off 
+    dynamically based on API request headers.
+    """
+    def __init__(self, cards):
+        self.cards = cards
+
+    def get_types(self):
+        counter = Counter(
+            c.card_type for c in self.cards 
+            if c.card_type and c.card_type != "-"
+        )
+        return {
+            "type_labels": list(counter.keys()),
+            "type_data": list(counter.values()),
+        }
+
+    def get_names(self, limit=15):
+        counter = Counter(c.name or "Unknown" for c in self.cards)
+        top_names = counter.most_common(limit)
+        return {
+            "name_labels": [name for name, _ in top_names],
+            "name_data": [count for _, count in top_names],
+        }
+
+    def get_colors(self, multi_limit=10):
+        single_counter = Counter()
+        multi_counter = Counter()
+        
+        for c in self.cards:
+            color = c.color or "Unknown"
+            if "/" in color:
+                multi_counter[color] += 1
+            else:
+                single_counter[color] += 1
+                
+        top_multi = multi_counter.most_common(multi_limit)
+        return {
+            "single_color_labels": list(single_counter.keys()),
+            "single_color_data": list(single_counter.values()),
+            "multicolor_labels": [color for color, _ in top_multi],
+            "multicolor_data": [count for _, count in top_multi],
+        }
+
+    def get_expansions(self, exclude_prefixes=None):
+        exclude_prefixes = exclude_prefixes or []
+        counter = Counter()
+        expansion_types = {}
+        
+        for c in self.cards:
+            exp = c.expansion or "Other"
+            
+            # Skip this card if its expansion matches/starts with an excluded prefix
+            if any(exp.upper().startswith(prefix) for prefix in exclude_prefixes):
+                continue
+                
+            counter[exp] += 1
+            # Capture the expansion type once per expansion
+            if exp not in expansion_types:
+                expansion_types[exp] = get_expansion_type(c.card_number)
+                
+        sorted_exps = sorted(counter.items(), key=natural_sort_key)
+        labels = [e for e, _ in sorted_exps]
+        
+        return {
+            "expansion_labels": labels,
+            "expansion_data": [count for _, count in sorted_exps],
+            "expansion_types": [expansion_types.get(e, "Other") for e in labels],
+        }
+
+    def get_sec_colors(self):
+        counter = Counter()
+        for c in self.cards:
+            if "SEC" in str(c.rarity).upper():
+                color = c.color or "Unknown"
+                if "/" in color:
+                    for val in color.split("/"):
+                        cleaned = val.strip()
+                        if cleaned:
+                            counter[cleaned] += 1
+                else:
+                    counter[color] += 1
+                    
+        return {
+            "sec_color_labels": list(counter.keys()),
+            "sec_color_data": list(counter.values()),
+        }
+
+    def get_subtypes(self, limit=20):
+        counter = Counter()
+        for c in self.cards:
+            raw_subtype = c.subtype
+            if raw_subtype:
+                for val in raw_subtype.split("/"):
+                    cleaned = val.strip()
+                    if cleaned and cleaned != "-":
+                        counter[cleaned] += 1
+                        
+        top_subtypes = counter.most_common(limit)
+        return {
+            "subtype_labels": [s for s, _ in top_subtypes],
+            "subtype_data": [count for _, count in top_subtypes],
+        }
+
 
 def analytics_data(request):
     cards = DigimonCard.objects.all()
-
-    type_counter = Counter()
-    name_counter = Counter()
-    single_color_counter = Counter()
-    multicolor_counter = Counter()
-    expansion_counter = Counter()
-    sec_color_counter = Counter()
-    subtype_counter = Counter()
-    expansion_types = {}
-
-    for card in cards:
-        card_type = card.card_type
-
-        if card_type and card_type != "-":
-            type_counter[card_type] += 1
-
-        name = card.name or "Unknown"
-        name_counter[name] += 1
-
-        color = card.color or "Unknown"
-
-        if "/" in color:
-            multicolor_counter[color] += 1
-        else:
-            single_color_counter[color] += 1
-
-        expansion = card.expansion or "Other"
-        expansion_counter[expansion] += 1
-
-        # Use helper function to map the expansion type
-        expansion_type = get_expansion_type(card.card_number)
-        expansion_types[expansion] = expansion_type
-
-        rarity = str(card.rarity).upper()
-
-        if "SEC" in rarity:
-            if "/" in color:
-                for value in color.split("/"):
-                    cleaned = value.strip()
-
-                    if cleaned:
-                        sec_color_counter[cleaned] += 1
-            else:
-                sec_color_counter[color] += 1
-
-        raw_subtype = card.subtype
-
-        if raw_subtype:
-            subtypes = [
-                value.strip()
-                for value in raw_subtype.split("/")
-                if value.strip() and value.strip() != "-"
-            ]
-
-            for subtype in subtypes:
-                subtype_counter[subtype] += 1
-
-    top_names = name_counter.most_common(15)
-    top_multicolors = multicolor_counter.most_common(10)
-    top_subtypes = subtype_counter.most_common(20)
-
-    sorted_expansions = sorted(
-        expansion_counter.items(),
-        key=natural_sort_key,
-    )
-
-    expansion_labels = [
-        expansion for expansion, _ in sorted_expansions
-    ]
-
-    expansion_data = [
-        count for _, count in sorted_expansions
-    ]
-
+    engine = CardAnalyticsEngine(cards)
+    
     data = {
         "total_cards": cards.count(),
-
-        "type_labels": list(type_counter.keys()),
-        "type_data": list(type_counter.values()),
-
-        "name_labels": [
-            name for name, _ in top_names
-        ],
-        "name_data": [
-            count for _, count in top_names
-        ],
-
-        "single_color_labels": list(
-            single_color_counter.keys()
-        ),
-        "single_color_data": list(
-            single_color_counter.values()
-        ),
-
-        "multicolor_labels": [
-            color for color, _ in top_multicolors
-        ],
-        "multicolor_data": [
-            count for _, count in top_multicolors
-        ],
-
-        "expansion_labels": expansion_labels,
-        "expansion_data": expansion_data,
-
-        # Corrected Key Name for React mapping
-        "expansion_types": [
-            expansion_types.get(expansion, "Other")
-            for expansion in expansion_labels
-        ],
-
-        "sec_color_labels": list(
-            sec_color_counter.keys()
-        ),
-        "sec_color_data": list(
-            sec_color_counter.values()
-        ),
-
-        "subtype_labels": [
-            subtype for subtype, _ in top_subtypes
-        ],
-        "subtype_data": [
-            count for _, count in top_subtypes
-        ],
     }
-
-    return JsonResponse(data)
     
+    # Check for chart exclusions in headers (System config)
+    exclude_header = request.headers.get("X-Exclude-Charts", "")
+    excluded = [item.strip().lower() for item in exclude_header.split(",")] if exclude_header else []
+    
+    # Check for data filters in URL query parameters (Data config)
+    # Example: /api/analytics/?exclude_exp=P,ST
+    exclude_exp_param = request.GET.get("exclude_exp", "")
+    excluded_expansions = [
+        item.strip().upper() 
+        for item in exclude_exp_param.split(",") 
+        if item.strip()
+    ]
+    
+    if "types" not in excluded:
+        data.update(engine.get_types())
+        
+    if "names" not in excluded:
+        data.update(engine.get_names())
+        
+    if "colors" not in excluded:
+        data.update(engine.get_colors())
+        
+    if "expansions" not in excluded:
+        # Pass the filter list into the method
+        data.update(engine.get_expansions(exclude_prefixes=excluded_expansions))
+        
+    if "sec_colors" not in excluded:
+        data.update(engine.get_sec_colors())
+        
+    if "subtypes" not in excluded:
+        data.update(engine.get_subtypes())
+
+    return JsonResponse(data)  
 
 def cards_by_name(request):
     """

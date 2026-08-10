@@ -1,13 +1,21 @@
-import os
+# import os
 import re
 from collections import Counter
 
 from django.core.cache import cache
 from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+from django.conf import settings
 
 from .card_sync import sync_cards
 from .models import DigimonCard
 
+from .statistics.distributions import conditional_distribution
+from .statistics.schema import (
+    get_analytics_fields,
+    get_categorical_fields,
+)
+from .statistics.associations import cramers_v
 
 def natural_sort_key(item):
     """
@@ -28,13 +36,13 @@ def get_expansion_type(card_number):
 
 
 def sync_cards_view(request):
-    expected_token = os.environ.get("CRON_SECRET") or os.environ.get("CARD_SYNC_TOKEN")
+    expected_token = settings.CRON_SECRET # os.environ.get("CRON_SECRET") or os.environ.get("CARD_SYNC_TOKEN")
 
-    if not expected_token:
-        return JsonResponse(
-            {"error": "Server cron secret is not configured."},
-            status=500
-        )
+    # if not expected_token:
+    #     return JsonResponse(
+    #         {"error": "Server cron secret is not configured."},
+    #         status=500
+    #     )
 
     auth_header = request.headers.get("Authorization", "")
     token_from_header = ""
@@ -241,6 +249,104 @@ def cards_by_name(request):
     )
 
     return JsonResponse(data)
+
+
+@require_GET
+def statistics_schema(request):
+    return JsonResponse({
+        "fields": get_analytics_fields(),
+        "categorical_fields": list(
+            get_categorical_fields().keys()
+        ),
+    })
+
+
+@require_GET
+def statistics_distribution(request):
+    given_field = request.GET.get("given")
+    given_value = request.GET.get("value")
+    target_field = request.GET.get("target")
+
+    categorical_fields = get_categorical_fields()
+
+    if given_field not in categorical_fields:
+        return JsonResponse(
+            {"error": f"Invalid given field: {given_field}"},
+            status=400,
+        )
+
+    if target_field not in categorical_fields:
+        return JsonResponse(
+            {"error": f"Invalid target field: {target_field}"},
+            status=400,
+        )
+
+    if not given_value:
+        return JsonResponse(
+            {"error": "Missing 'value' parameter."},
+            status=400,
+        )
+
+    cards = DigimonCard.objects.all()
+
+    result = conditional_distribution(
+        DigimonCard,
+        given_field,
+        target_field,
+        given_value,
+    )
+
+    return JsonResponse({
+        "given": {
+            "field": given_field,
+            "value": given_value,
+        },
+        "target": {
+            "field": target_field,
+        },
+        "distribution": result,
+    })
+
+
+@require_GET
+def statistics_association(request):
+    first_field = request.GET.get("first")
+    second_field = request.GET.get("second")
+
+    categorical_fields = get_categorical_fields()
+
+    if first_field not in categorical_fields:
+        return JsonResponse(
+            {"error": f"Invalid field: {first_field}"},
+            status=400,
+        )
+
+    if second_field not in categorical_fields:
+        return JsonResponse(
+            {"error": f"Invalid field: {second_field}"},
+            status=400,
+        )
+
+    rows = list(
+        DigimonCard.objects.values(
+            first_field,
+            second_field,
+        )
+    )
+
+    value = cramers_v(
+        rows,
+        first_field,
+        second_field,
+    )
+
+    return JsonResponse({
+        "fields": {
+            "first": first_field,
+            "second": second_field,
+        },
+        "cramers_v": value,
+    })
 
 
 from django.core.paginator import Paginator

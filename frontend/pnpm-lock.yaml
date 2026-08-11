@@ -46,7 +46,7 @@ importers:
         specifier: ^7.1.1
         version: 7.1.1(eslint@10.8.0(supports-color@7.2.0))(supports-color@7.2.0)
       eslint-plugin-react-refresh:
-        specifier: ^0.5.3
+        specifier: 0.5.3
         version: 0.5.3(eslint@10.8.0(supports-color@7.2.0))
       globals:
         specifier: ^17.9.0

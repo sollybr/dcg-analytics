@@ -1,4 +1,3 @@
-
 import { COLOR_MAP } from './cardUtils';
 
 export const DISTINCT_COLORS_15 = [
@@ -110,6 +109,13 @@ export interface DistributionItem {
     value: string;
     count: number;
     percentage: number;
+    // Present when the backend was asked to include a baseline (default).
+    // baseline_percentage = this value's share of the WHOLE card pool for
+    // the target field, independent of the given condition. lift =
+    // percentage / baseline_percentage -- 1.0 means "no different from the
+    // overall base rate," >1 means over-represented, <1 under-represented.
+    baseline_percentage?: number;
+    lift?: number | null;
 }
 
 export interface StatisticsDistribution {
@@ -120,6 +126,11 @@ export interface StatisticsDistribution {
     target: {
         field: string;
     };
+    // Total count the conditional distribution is based on. Always show
+    // this next to any distribution chart -- a chart built on 4 cards
+    // should not look the same as one built on 400.
+    sample_size?: number;
+    baseline_sample_size?: number;
     distribution: DistributionItem[];
 }
 
@@ -143,6 +154,13 @@ export interface StatisticsAssociation {
         second: string;
     };
     cramers_v: number;
+    // sample_size/reliable come from the chi-square expected-cell-count
+    // check server-side. reliable === false means the contingency table
+    // is too sparse for cramers_v to be trustworthy -- surface this
+    // instead of letting a high V read as a confident finding.
+    sample_size?: number;
+    reliable?: boolean;
+    low_expected_cell_ratio?: number | null;
 }
 
 export const getDistributionLabels = (
@@ -169,9 +187,48 @@ export const getDistributionPercentages = (
     );
 };
 
+export const getDistributionBaselinePercentages = (
+    distribution: DistributionItem[]
+): number[] => {
+    return distribution.map(
+        (item) => (item.baseline_percentage ?? 0) * 100
+    );
+};
+
+export const getDistributionLift = (
+    distribution: DistributionItem[]
+): (number | null)[] => {
+    return distribution.map(
+        (item) => item.lift ?? null
+    );
+};
+
+/**
+ * A distribution item is only worth calling out as a "finding" if it's
+ * both meaningfully sized (not 2 cards out of 4) and meaningfully skewed
+ * relative to the baseline (lift far from 1.0). This intentionally
+ * requires both baseline_percentage and a minimum sample size -- a lift
+ * of 3.0x on n=2 is not a finding, it's noise.
+ */
+export const getNotableDistributionItems = (
+    distribution: DistributionItem[],
+    sampleSize: number | undefined,
+    { minSampleSize = 20, minLift = 1.3, maxLift = 0.7 } = {}
+): DistributionItem[] => {
+    if (!sampleSize || sampleSize < minSampleSize) {
+        return [];
+    }
+
+    return distribution.filter((item) => {
+        if (item.lift == null) return false;
+        return item.lift >= minLift || item.lift <= maxLift;
+    });
+};
+
 export const createDistributionDataset = (
     distribution: DistributionItem[],
-    targetField: string
+    targetField: string,
+    { includeBaseline = false }: { includeBaseline?: boolean } = {}
 ) => {
     const labels =
         getDistributionLabels(distribution);
@@ -194,16 +251,57 @@ export const createDistributionDataset = (
                     ]
             );
 
+    const datasets: Array<Record<string, unknown>> = [
+        {
+            label: 'Distribution',
+            data,
+            backgroundColor,
+        },
+    ];
+
+    // Opt-in second dataset showing the full-card-pool baseline as a
+    // muted overlay, so the skew is visible on the chart itself rather
+    // than requiring the viewer to read lift numbers separately.
+    if (includeBaseline) {
+        const hasBaseline = distribution.some(
+            (item) => item.baseline_percentage !== undefined
+        );
+
+        if (hasBaseline) {
+            datasets.push({
+                label: 'Baseline (all cards)',
+                data: getDistributionBaselinePercentages(distribution),
+                backgroundColor: 'rgba(148, 163, 184, 0.35)',
+                borderColor: 'rgba(148, 163, 184, 0.8)',
+                borderWidth: 1,
+            });
+        }
+    }
+
     return {
         labels,
-        datasets: [
-            {
-                label: 'Distribution',
-                data,
-                backgroundColor,
-            },
-        ],
+        datasets,
     };
+};
+
+/**
+ * Human-readable reliability note for an association result. Returns
+ * null when the result is reliable (nothing to warn about) or when
+ * reliability info isn't present (older response shape).
+ */
+export const getAssociationReliabilityWarning = (
+    association: StatisticsAssociation
+): string | null => {
+    if (association.reliable === undefined) {
+        return null;
+    }
+
+    if (association.reliable) {
+        return null;
+    }
+
+    const n = association.sample_size ?? 'unknown';
+    return `Low confidence: sample size (n=${n}) is too small relative to the number of category combinations for this association to be reliable.`;
 };
 
 export const darkOptions = {

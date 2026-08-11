@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Bar } from 'react-chartjs-2';
 
@@ -13,63 +12,12 @@ import {
 
 import AnalyticsChart from './AnalyticsChart';
 
-const distributionPresets = [
-    {
-        id: 'name-color',
-        label: 'CARD NAME → COLOR',
-        given: 'name',
-        target: 'color',
-        description: 'Discover the color composition of a specific card name.',
-    },
-    {
-        id: 'name-rarity',
-        label: 'CARD NAME → RARITY',
-        given: 'name',
-        target: 'rarity',
-        description: 'See how a card name is distributed across rarities.',
-    },
-    {
-        id: 'name-expansion',
-        label: 'CARD NAME → EXPANSION',
-        given: 'name',
-        target: 'expansion',
-        description: 'Track where a card name has appeared across expansions.',
-    },
-    {
-        id: 'expansion-color',
-        label: 'EXPANSION → COLOR',
-        given: 'expansion',
-        target: 'color',
-        description: 'Analyze the color composition of an expansion.',
-    },
-    {
-        id: 'expansion-rarity',
-        label: 'EXPANSION → RARITY',
-        given: 'expansion',
-        target: 'rarity',
-        description: 'Analyze the rarity distribution of an expansion.',
-    },
-    {
-        id: 'color-subtype',
-        label: 'COLOR → TYPE (TRAIT)',
-        given: 'color',
-        target: 'subtype',
-        description: 'Discover which Types (Traits) dominate a specific color.',
-    },
-    {
-        id: 'rarity-color',
-        label: 'RARITY → COLOR',
-        given: 'rarity',
-        target: 'color',
-        description: 'Analyze the color composition of a rarity.',
-    },
-    {
-        id: 'subtype-rarity',
-        label: 'TYPE (TRAIT) → RARITY',
-        given: 'subtype',
-        target: 'rarity',
-        description: 'See how Types (Traits) are distributed across rarities.',
-    },
+const FIELD_OPTIONS = [
+    'name',
+    'color',
+    'rarity',
+    'expansion',
+    'subtype',
 ];
 
 const getFieldLabel = (field) => {
@@ -85,22 +33,41 @@ const getFieldLabel = (field) => {
 };
 
 export default function AdvancedStatisticsView({ onClose }) {
-    const [selectedPreset, setSelectedPreset] = useState(null);
+    const [givenField, setGivenField] = useState('');
+    const [targetField, setTargetField] = useState('');
     const [selectedValue, setSelectedValue] = useState('');
 
     const [distribution, setDistribution] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    const selectPreset = (preset) => {
-        setSelectedPreset(preset);
+    // Any of the FIELD_OPTIONS pairs with any other -- this replaces the
+    // fixed 8-pair preset list, which only covered some directions
+    // (e.g. had RARITY → COLOR but not COLOR → RARITY). Deriving this
+    // from two independent selects means every direction is available,
+    // and downstream code below still just reads .given/.target/.label
+    // the same way it did off the old preset objects.
+    const selectedPreset =
+        givenField && targetField && givenField !== targetField
+            ? {
+                given: givenField,
+                target: targetField,
+                label: `${getFieldLabel(givenField)} → ${getFieldLabel(targetField)}`,
+                description: `See how ${getFieldLabel(targetField)} is distributed for a given ${getFieldLabel(givenField)}.`,
+            }
+            : null;
+
+    const swapFields = () => {
+        setGivenField(targetField);
+        setTargetField(givenField);
         setSelectedValue('');
         setDistribution(null);
         setError(null);
     };
 
     const resetAnalysis = () => {
-        setSelectedPreset(null);
+        setGivenField('');
+        setTargetField('');
         setSelectedValue('');
         setDistribution(null);
         setError(null);
@@ -265,46 +232,89 @@ export default function AdvancedStatisticsView({ onClose }) {
                                 </span>
 
                                 <h2>
-                                    QUICK ANALYSIS
+                                    BUILD ANALYSIS
                                 </h2>
                             </div>
 
                             <span>
-                                {distributionPresets.length}
-                                {' '}AVAILABLE
+                                {FIELD_OPTIONS.length}
+                                {' '}FIELDS
                             </span>
                         </div>
 
-                        <div className="distribution-presets">
-                            {distributionPresets.map(
-                                (preset) => (
-                                    <button
-                                        key={preset.id}
-                                        type="button"
-                                        className="distribution-preset"
-                                        onClick={() =>
-                                            selectPreset(
-                                                preset
-                                            )
-                                        }
-                                    >
-                                        <span className="preset-label">
-                                            {preset.label}
-                                        </span>
+                        <div className="distribution-pair-builder">
+                            <div className="pair-field">
+                                <label htmlFor="given-field-select">
+                                    GIVEN
+                                </label>
 
-                                        <span className="preset-description">
-                                            {
-                                                preset.description
-                                            }
-                                        </span>
+                                <select
+                                    id="given-field-select"
+                                    value={givenField}
+                                    onChange={(event) =>
+                                        setGivenField(event.target.value)
+                                    }
+                                >
+                                    <option value="">
+                                        SELECT FIELD...
+                                    </option>
 
-                                        <span className="preset-arrow">
-                                            →
-                                        </span>
-                                    </button>
-                                )
-                            )}
+                                    {FIELD_OPTIONS.map((field) => (
+                                        <option
+                                            key={field}
+                                            value={field}
+                                            disabled={field === targetField}
+                                        >
+                                            {getFieldLabel(field)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="pair-swap-button"
+                                onClick={swapFields}
+                                disabled={!givenField || !targetField}
+                                title="Swap given and target"
+                            >
+                                ⇄
+                            </button>
+
+                            <div className="pair-field">
+                                <label htmlFor="target-field-select">
+                                    TARGET
+                                </label>
+
+                                <select
+                                    id="target-field-select"
+                                    value={targetField}
+                                    onChange={(event) =>
+                                        setTargetField(event.target.value)
+                                    }
+                                >
+                                    <option value="">
+                                        SELECT FIELD...
+                                    </option>
+
+                                    {FIELD_OPTIONS.map((field) => (
+                                        <option
+                                            key={field}
+                                            value={field}
+                                            disabled={field === givenField}
+                                        >
+                                            {getFieldLabel(field)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
+
+                        {givenField && targetField && (
+                            <p className="query-description">
+                                {`See how ${getFieldLabel(targetField)} is distributed for a given ${getFieldLabel(givenField)}.`}
+                            </p>
+                        )}
                     </section>
                 )}
 

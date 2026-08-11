@@ -429,61 +429,93 @@ body {
   border-radius: 999px;
 }
 
-/* -- preset picker grid -- */
+/* -- given/target pair builder -- */
 
-.distribution-presets {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+.distribution-pair-builder {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
-.distribution-preset {
-  position: relative;
+.pair-field {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  text-align: left;
-  background-color: #0f172a;
+  gap: 6px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.pair-field label {
+  font-size: 0.7rem;
+  letter-spacing: 1.5px;
+  color: #94a3b8;
+}
+
+.pair-field select {
+  background-color: #060911;
   border: 1px solid #1e293b;
-  border-radius: 8px;
-  padding: 16px 40px 16px 16px;
+  border-radius: 4px;
+  padding: 10px 12px;
+  color: #00f3ff;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pair-field select:hover {
+  border-color: #334155;
+}
+
+.pair-field select:focus {
+  outline: none;
+  border-color: #00f3ff;
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
+}
+
+.pair-field select option:disabled {
+  color: #334155;
+}
+
+.pair-swap-button {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  color: #ff6600;
+  border: 1px solid #ff6600;
+  border-radius: 50%;
+  font-size: 1rem;
   font-family: inherit;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.distribution-preset:hover {
-  border-color: #00f3ff;
-  box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
-  transform: translateY(-2px);
+.pair-swap-button:hover:not(:disabled) {
+  background-color: rgba(255, 102, 0, 0.1);
+  box-shadow: 0 0 12px rgba(255, 102, 0, 0.4);
+  transform: rotate(180deg);
 }
 
-.preset-label {
-  font-size: 0.85rem;
-  font-weight: bold;
-  letter-spacing: 1px;
-  color: #00f3ff;
+.pair-swap-button:disabled {
+  border-color: #1e293b;
+  color: #334155;
+  cursor: not-allowed;
 }
 
-.preset-description {
-  font-size: 0.8rem;
-  line-height: 1.4;
-  color: #94a3b8;
-}
+@media (max-width: 700px) {
+  .distribution-pair-builder {
+    flex-direction: column;
+    align-items: stretch;
+  }
 
-.preset-arrow {
-  position: absolute;
-  top: 50%;
-  right: 16px;
-  transform: translateY(-50%);
-  color: #ff6600;
-  font-size: 1.2rem;
-  transition: transform 0.2s ease;
-}
-
-.distribution-preset:hover .preset-arrow {
-  transform: translateY(-50%) translateX(4px);
+  .pair-swap-button {
+    align-self: center;
+  }
 }
 
 /* -- query form -- */

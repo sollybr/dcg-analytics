@@ -15,7 +15,7 @@ from .statistics.schema import (
     get_analytics_fields,
     get_categorical_fields,
 )
-from .statistics.associations import cramers_v
+from .statistics.associations import cramers_v_with_diagnostics
 
 def natural_sort_key(item):
     """
@@ -313,25 +313,24 @@ def statistics_distribution(request):
             status=400,
         )
 
-    cards = DigimonCard.objects.all()
+    # Baseline comparison is on by default -- it's what lets the frontend
+    # tell "this is really skewed relative to the whole card pool" apart
+    # from "this just reflects the overall base rate." Allow opting out
+    # via ?baseline=0 since it costs a second query.
+    include_baseline = request.GET.get("baseline", "1") != "0"
 
     result = conditional_distribution(
         DigimonCard,
         given_field,
         target_field,
         given_value,
+        include_baseline=include_baseline,
     )
 
-    return JsonResponse({
-        "given": {
-            "field": given_field,
-            "value": given_value,
-        },
-        "target": {
-            "field": target_field,
-        },
-        "distribution": result,
-    })
+    # conditional_distribution already returns the full
+    # {given, target, sample_size, baseline_sample_size, distribution}
+    # shape -- no need to rebuild it here.
+    return JsonResponse(result)
 
 
 @require_GET
@@ -360,7 +359,7 @@ def statistics_association(request):
         )
     )
 
-    value = cramers_v(
+    diagnostics = cramers_v_with_diagnostics(
         rows,
         first_field,
         second_field,
@@ -371,7 +370,10 @@ def statistics_association(request):
             "first": first_field,
             "second": second_field,
         },
-        "cramers_v": value,
+        "cramers_v": diagnostics["cramers_v"],
+        "sample_size": diagnostics["sample_size"],
+        "reliable": diagnostics["reliable"],
+        "low_expected_cell_ratio": diagnostics["low_expected_cell_ratio"],
     })
 
 

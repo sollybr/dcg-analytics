@@ -1,5 +1,4 @@
-from django.db.models import Count
-
+from collections import Counter
 
 def conditional_distribution(
     model,
@@ -7,38 +6,33 @@ def conditional_distribution(
     target_field,
     given_value,
 ):
-    filters = {
-        f"{given_field}__iexact": given_value,
-    }
+    if given_field in ["subtype", "color", "card_type", "type"]:
+        filters = {f"{given_field}__icontains": given_value}
+    else:
+        filters = {f"{given_field}__iexact": given_value}
 
-    queryset = (
-        model.objects
-        .filter(**filters)
-        .values(target_field)
-        .annotate(count=Count("id"))
-        .order_by("-count")
-    )
+    queryset = model.objects.filter(**filters).values_list(target_field, flat=True)
 
-    rows = [
-        row
-        for row in queryset
-        if row[target_field] not in (None, "")
-    ]
+    counter = Counter()
+    
+    for raw_val in queryset:
+        if not raw_val or raw_val == "-":
+            continue
+            
+        # Split by '/' to handle multi-value fields (subtypes, colors, types)
+        for val in raw_val.split("/"):
+            cleaned = val.strip()
+            if cleaned and cleaned != "-":
+                counter[cleaned] += 1
 
-    total = sum(
-        row["count"]
-        for row in rows
-    )
+    total = sum(counter.values())
+    top_results = counter.most_common()
 
     return [
         {
-            "value": row[target_field],
-            "count": row["count"],
-            "percentage": (
-                row["count"] / total
-                if total
-                else 0
-            ),
+            "value": val,
+            "count": count,
+            "percentage": (count / total) if total else 0,
         }
-        for row in rows
+        for val, count in top_results
     ]

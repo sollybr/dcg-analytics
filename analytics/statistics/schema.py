@@ -14,11 +14,13 @@ EXCLUDED_FIELDS = {
 def get_analytics_fields(model=DigimonCard):
     fields = {}
 
+    FORCE_CATEGORICAL = ["subtype", "type", "color", "card_type"] 
+
     for field in model._meta.fields:
         if field.name in EXCLUDED_FIELDS:
             continue
 
-        if isinstance(field, models.CharField):
+        if isinstance(field, models.CharField) or field.name in FORCE_CATEGORICAL:
             fields[field.name] = {
                 "name": field.name,
                 "type": "categorical",

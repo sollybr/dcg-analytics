@@ -50,11 +50,11 @@ const distributionPresets = [
         description: 'Analyze the rarity distribution of an expansion.',
     },
     {
-        id: 'color-type',
-        label: 'COLOR → CARD TYPE',
+        id: 'color-subtype',
+        label: 'COLOR → TYPE (TRAIT)',
         given: 'color',
-        target: 'card_type',
-        description: 'Discover which card types dominate a color.',
+        target: 'subtype',
+        description: 'Discover which Types (Traits) dominate a specific color.',
     },
     {
         id: 'rarity-color',
@@ -64,11 +64,11 @@ const distributionPresets = [
         description: 'Analyze the color composition of a rarity.',
     },
     {
-        id: 'type-rarity',
-        label: 'CARD TYPE → RARITY',
-        given: 'card_type',
+        id: 'subtype-rarity',
+        label: 'TYPE (TRAIT) → RARITY',
+        given: 'subtype',
         target: 'rarity',
-        description: 'See how card types are distributed across rarities.',
+        description: 'See how Types (Traits) are distributed across rarities.',
     },
 ];
 
@@ -78,7 +78,7 @@ const getFieldLabel = (field) => {
         color: 'COLOR',
         rarity: 'RARITY',
         expansion: 'EXPANSION',
-        card_type: 'CARD TYPE',
+        subtype: 'TYPE (TRAIT)',
     };
 
     return labels[field] || field.toUpperCase();

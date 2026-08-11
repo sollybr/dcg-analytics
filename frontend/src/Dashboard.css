@@ -635,6 +635,87 @@ body {
   text-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
 }
 
+.statistics-metric strong.lift-up {
+  color: #22c55e;
+  text-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+
+.statistics-metric strong.lift-down {
+  color: #ff6600;
+  text-shadow: 0 0 8px rgba(255, 102, 0, 0.4);
+}
+
+.distribution-lift-badge {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.distribution-lift-badge.lift-up {
+  color: #22c55e;
+  background-color: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.distribution-lift-badge.lift-down {
+  color: #ff6600;
+  background-color: rgba(255, 102, 0, 0.1);
+  border: 1px solid rgba(255, 102, 0, 0.4);
+}
+
+/* -- field-level association callout -- */
+
+.statistics-association {
+  background-color: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 20px 24px;
+}
+
+.statistics-association.reliable {
+  border-left: 3px solid #22c55e;
+}
+
+.statistics-association.unreliable {
+  border-left: 3px solid #ef4444;
+}
+
+.statistics-association-header span {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 2px;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.statistics-association-header h3 {
+  margin: 0 0 10px 0;
+  font-size: 1rem;
+  color: #ffffff;
+}
+
+.statistics-association-body {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+
+.statistics-association-body strong {
+  color: #00f3ff;
+}
+
+.statistics-association-warning {
+  margin: 10px 0 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #ef4444;
+}
+
 /* -- state panels: error / loading / empty -- */
 
 .advanced-statistics-error,

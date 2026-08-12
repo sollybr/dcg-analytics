@@ -50,6 +50,37 @@ else:
         }
     }
 
+DIGIMON_IMAGE_SYNC = {
+    # -------------------------------------------------------------------------
+    # SOURCE CONFIGURATION
+    # -------------------------------------------------------------------------
+    'SOURCE_TYPE': os.getenv('DIGIMON_IMAGE_SOURCE_TYPE', 'github_repo'),
+    'GITHUB_API_URL': os.getenv(
+        'DIGIMON_GITHUB_API_URL',
+        'https://api.github.com/repos/TakaOtaku/Digimon-Card-App/contents/src/assets/images/cards'
+    ),
+    # Branch to read from when fetching the full file tree via GitHub's
+    # Git Trees API (used to get past the Contents API's ~1000-entry cap
+    # on large directories).
+    'GITHUB_BRANCH': os.getenv('DIGIMON_GITHUB_BRANCH', 'main'),
+
+    # -------------------------------------------------------------------------
+    # STORAGE BACKEND
+    # -------------------------------------------------------------------------
+    # Options: 'vercel_blob', 's3', 'database'
+    'STORAGE_BACKEND': os.getenv('DIGIMON_STORAGE_BACKEND', 'vercel_blob'),
+    'BLOB_READ_WRITE_TOKEN': os.getenv('BLOB_READ_WRITE_TOKEN', ''),
+    'BLOB_UPLOAD_ENDPOINT': os.getenv('VERCEL_BLOB_ENDPOINT', 'https://blob.vercel-storage.com'),
+    'BLOB_PATH_PREFIX': 'cards/',
+
+    # -------------------------------------------------------------------------
+    # ALTERNATE ART PATTERN MATCHING
+    # -------------------------------------------------------------------------
+    # Keywords in filename that denote an Alternate Art or Promo
+    # e.g., "BT1-084_P1.png" or "BT1-084_AA.png" or "BT1-084_PARALLEL.png"
+    'ALT_ART_INDICATORS': ['_P', '_AA', '_PARALLEL', '_PROMO', '_ALT'],
+}
+
 ROOT_URLCONF = 'digimon_stats.urls'
 
 TEMPLATES = [

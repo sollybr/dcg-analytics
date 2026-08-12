@@ -4,7 +4,7 @@ import time
 import requests
 
 from django.core.cache import cache
-from .models import DigimonCard
+from .models import DigimonCard, CardExpansion
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +104,23 @@ def get_expansion(card):
     return "Other"
 
 
+def extract_expansion_info(card):
+    """Extract (expansion_code, expansion_name) from raw card data."""
+    code = get_expansion(card)
+    notes = str(card.get("notes", "")).strip()
+    name = ""
+
+    if notes and ":" in notes:
+        parts = notes.split(":", 1)
+        name = parts[1].strip()
+
+    # Fallback to code if no human-readable name is defined
+    if not name:
+        name = code
+
+    return code, name
+
+
 def card_defaults(card):
     name_obj = card.get("name", {})
 
@@ -140,11 +157,76 @@ def fetch_remote_cards():
     return data
 
 
-def sync_cards(stdout_writer=None):
+def sync_expansions(raw_cards=None, stdout_writer=None):
     """
-    Synchronize remote GitHub card list into database with ETA and elapsed time tracking.
+    Synchronizes unique card expansions into the CardExpansion table.
+    """
+    def log_msg(msg: str):
+        logger.info(msg)
+        if stdout_writer:
+            stdout_writer(msg)
+
+    if raw_cards is None:
+        raw_cards = fetch_remote_cards()
+
+    log_msg("Synchronizing card expansions...")
+
+    expansion_map = {}  # expansion_code -> expansion_name
+
+    for raw_card in raw_cards:
+        if not isinstance(raw_card, dict) or not is_valid_card(raw_card):
+            continue
+
+        code, name = extract_expansion_info(raw_card)
+        if not code:
+            continue
+
+        # Register code or update if we found a descriptive name vs fallback
+        if code not in expansion_map or (expansion_map[code] == code and name != code):
+            expansion_map[code] = name
+
+    if not expansion_map:
+        log_msg("No expansions found to synchronize.")
+        return {"created": 0, "updated": 0}
+
+    # Fetch existing expansions from DB
+    existing_expansions = {
+        exp.expansion_code: exp
+        for exp in CardExpansion.objects.filter(expansion_code__in=expansion_map.keys())
+    }
+
+    to_create = []
+    to_update = []
+
+    for code, name in expansion_map.items():
+        if code in existing_expansions:
+            exp_obj = existing_expansions[code]
+            if exp_obj.expansion_name != name and name != code:
+                exp_obj.expansion_name = name
+                to_update.append(exp_obj)
+        else:
+            to_create.append(
+                CardExpansion(
+                    expansion_code=code,
+                    expansion_name=name,
+                )
+            )
+
+    if to_create:
+        CardExpansion.objects.bulk_create(to_create)
+    if to_update:
+        CardExpansion.objects.bulk_update(to_update, fields=["expansion_name"])
+
+    log_msg(f"Expansions synchronized: {len(to_create)} created, {len(to_update)} updated.")
+    return {"created": len(to_create), "updated": len(to_update)}
+
+
+def sync_cards(stdout_writer=None, sync_expansions_table=True):
+    """
+    Synchronize remote GitHub card list (and expansions) into database.
     
-    :param stdout_writer: Optional stdout print function (e.g. self.stdout.write for management commands)
+    :param stdout_writer: Optional stdout print function
+    :param sync_expansions_table: If True, also syncs CardExpansion table
     """
     start_time = time.perf_counter()
 
@@ -162,6 +244,11 @@ def sync_cards(stdout_writer=None):
     except Exception as e:
         logger.exception("Could not refresh Digimon cards from GitHub.")
         raise RuntimeError(f"Fetch failed: {str(e)}")
+
+    # Sync expansions first using the fetched raw_cards payload
+    expansions_res = {"created": 0, "updated": 0}
+    if sync_expansions_table:
+        expansions_res = sync_expansions(raw_cards=raw_cards, stdout_writer=stdout_writer)
 
     # 1. Deduplicate & Sanitize in memory
     card_map = {}
@@ -183,6 +270,8 @@ def sync_cards(stdout_writer=None):
             "created": 0,
             "updated": 0,
             "skipped": skipped,
+            "expansions_created": expansions_res["created"],
+            "expansions_updated": expansions_res["updated"],
             "elapsed_seconds": round(total_time, 2),
             "elapsed_formatted": format_duration(total_time),
         }
@@ -264,6 +353,8 @@ def sync_cards(stdout_writer=None):
         "created": created,
         "updated": updated,
         "skipped": skipped,
+        "expansions_created": expansions_res["created"],
+        "expansions_updated": expansions_res["updated"],
         "elapsed_seconds": round(total_time, 2),
         "elapsed_formatted": format_duration(total_time),
     }

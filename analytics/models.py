@@ -1,5 +1,18 @@
 from django.db import models
 
+class CardExpansion(models.Model):
+    expansion_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        db_index=True,
+    )
+    expansion_code = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        db_index=True,
+    )
 
 class DigimonCard(models.Model):
     card_number = models.CharField(

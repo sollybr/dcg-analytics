@@ -9,7 +9,7 @@ class CardExpansion(models.Model):
     )
     expansion_code = models.CharField(
         max_length=32,
-        unique=True,
+        # unique=True,
         db_index=True,
     )
 

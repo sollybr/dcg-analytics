@@ -3,11 +3,11 @@ from django.core.management import call_command
 from django.db import connection
 
 from analytics.models import DigimonCard
-from analytics.card_sync import sync_cards  # Import your sync function
+from analytics.card_sync import sync_cards
 
 
 class Command(BaseCommand):
-    help = 'Automatically handles migrations, fixes table desyncs, and syncs card data'
+    help = 'Automatically handles migrations, fixes table desyncs, and syncs card & expansion data'
 
     def handle(self, *args, **options):
         self.stdout.write(self.style.WARNING("Checking database schema state..."))
@@ -31,27 +31,29 @@ class Command(BaseCommand):
                     self.style.SUCCESS("Stale migration history cleared successfully.")
                 )
         except Exception:
-            # Safe fallback if tables (like django_migrations itself) do not exist yet on a brand-new database
+            # Safe fallback if tables do not exist yet on a brand-new database
             pass
 
         self.stdout.write(self.style.WARNING("Running database migrations..."))
         call_command('migrate')
         self.stdout.write(self.style.SUCCESS("Migrations applied successfully!"))
 
-        self.stdout.write(self.style.WARNING("Syncing card data..."))
+        self.stdout.write(self.style.WARNING("Syncing card & expansion data..."))
         try:
-            # Pass self.stdout.write so progress and ETA stream live to terminal
-            result = sync_cards(stdout_writer=self.stdout.write)
+            result = sync_cards(stdout_writer=self.stdout.write, sync_expansions_table=True)
             
             elapsed = result.get("elapsed_formatted", "")
             created = result.get("created", 0)
             updated = result.get("updated", 0)
+            exp_created = result.get("expansions_created", 0)
+            exp_updated = result.get("expansions_updated", 0)
 
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Cards synchronized and database populated successfully in {elapsed}! "
-                    f"({created} created, {updated} updated)"
+                    f"Cards & Expansions synchronized successfully in {elapsed}! "
+                    f"Cards: ({created} created, {updated} updated) | "
+                    f"Expansions: ({exp_created} created, {exp_updated} updated)"
                 )
             )
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Error during card sync: {e}"))
+            self.stdout.write(self.style.ERROR(f"Error during data sync: {e}"))

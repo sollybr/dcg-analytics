@@ -92,11 +92,11 @@ export const getColors = (
 
 export const getCardExpansion = (card: DigimonCard): string => {
   return (
+    card.expansion_name ||
+    card.expansionName ||
+    card.expansion ||
     card.booster ||
-    card.setId ||
-    card.set ||
-    card.setNumber ||
-    'Unknown Set'
+    'Unknown Expansion'
   );
 };
 

@@ -1,4 +1,5 @@
 # import os
+import logging
 import re
 from collections import Counter
 
@@ -16,6 +17,8 @@ from .statistics.schema import (
     get_categorical_fields,
 )
 from .statistics.associations import cramers_v_with_diagnostics
+
+logger = logging.getLogger(__name__)
 
 def natural_sort_key(item):
     """
@@ -64,8 +67,9 @@ def sync_cards_view(request):
     try:
         result = sync_cards()
         return JsonResponse(result, status=200)
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+    except Exception:
+        logger.exception("Card sync failed.")
+        return JsonResponse({"error": "An internal error has occurred."}, status=500)
 
 
 CACHE_TIMEOUT = 60 * 60 * 6

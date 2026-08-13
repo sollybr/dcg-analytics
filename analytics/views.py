@@ -1,3 +1,4 @@
+import logging
 import re
 from collections import Counter
 
@@ -8,16 +9,15 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_http_methods
 
 from .card_sync import sync_cards
-from .models import DigimonCard
 from .statistics.associations import cramers_v_with_diagnostics
+from .models import DigimonCard, CardExpansion
 from .statistics.distributions import conditional_distribution
 from .statistics.schema import (
     get_analytics_fields,
     get_categorical_fields,
 )
 
-CACHE_TIMEOUT = 60 * 60 * 6  # 6 Hours
-
+logger = logging.getLogger(__name__)
 
 def natural_sort_key(item):
     """
@@ -67,8 +67,9 @@ def sync_cards_view(request):
     try:
         result = sync_cards()
         return JsonResponse(result, status=200)
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+    except Exception:
+        logger.exception("Card sync failed.")
+        return JsonResponse({"error": "An internal error has occurred."}, status=500)
 
 
 class CardAnalyticsEngine:
@@ -227,34 +228,99 @@ def analytics_data(request):
     return JsonResponse(data)
 
 
+from django.db.models import Q
+from rest_framework import generics
+from .serializers import DigimonCardSerializer
+
+def apply_expansion_filter(queryset, expansion: str):
+    """
+    Shared expansion-matching logic. Matches 'BT19', 'BT18-19', 'BT19-20', etc.
+    """
+    if not expansion:
+        return queryset
+    return queryset.filter(
+        Q(expansion__iexact=expansion) |
+        Q(expansion__icontains=f"{expansion}-") |
+        Q(expansion__icontains=f"-{expansion}") |
+        Q(card_number__startswith=f"{expansion}-")
+    )
+
+
+class DigimonCardListView(generics.ListAPIView):
+    serializer_class = DigimonCardSerializer
+
+    def get_queryset(self):
+        queryset = DigimonCard.objects.all()
+        expansion = self.request.query_params.get('expansion', None)
+        return apply_expansion_filter(queryset, expansion)
+
+
+def resolve_expansion_name(expansion_code: str, expansion_map: dict) -> str:
+    """
+    Resolve a card's expansion code to a display name using a preloaded
+    {expansion_code: expansion_name} map. Mirrors the exact-match then
+    range-containment logic used in DigimonCardSerializer.get_expansion_name.
+    """
+    if not expansion_code:
+        return "Unknown Expansion"
+
+    # 1. Direct match on exact code (e.g. "BT18-19")
+    name = expansion_map.get(expansion_code)
+    if name:
+        return name
+
+    # 2. Range containment: expansion_code ("BT19") found inside a combined
+    #    code key ("BT18-19" / "BT19-20")
+    for code, name in expansion_map.items():
+        if expansion_code in code and name:
+            return name
+
+    return expansion_code
+
+
 @require_GET
 def cards_by_name(request):
     """
     Return all cards with a given English name.
+    Optional `expansion` query param filters to a specific set/range.
     """
     name = request.GET.get("name", "").strip()
+    expansion = request.GET.get("expansion", "").strip()
 
     if not name:
-        return JsonResponse({"error": "Missing name parameter."}, status=400)
+        return JsonResponse(
+            {"error": "Missing name parameter."},
+            status=400,
+        )
 
-    cache_key = f"cards_by_name:{name.casefold()}"
+    cache_key = f"cards_by_name:{name.casefold()}:{expansion.casefold()}"
     cached_data = cache.get(cache_key)
-
     if cached_data is not None:
         return JsonResponse(cached_data)
 
-    cards = (
-        DigimonCard.objects
-        .filter(name__iexact=name)
-        .order_by("card_number")
+    cards = DigimonCard.objects.filter(name__iexact=name)
+    cards = apply_expansion_filter(cards, expansion)
+    cards = cards.order_by("card_number")
+
+    # Preload the expansion code -> name map once, instead of hitting
+    # CardExpansion per card (avoids N+1 queries).
+    expansion_map = dict(
+        CardExpansion.objects.values_list("expansion_code", "expansion_name")
     )
 
     data = {
         "name": name,
+        "expansion": expansion or None,
         "count": cards.count(),
-        "cards": [card.data for card in cards],
+        "cards": [
+            {
+                **card.data,
+                "expansion": card.expansion,
+                "expansion_name": resolve_expansion_name(card.expansion, expansion_map),
+            }
+            for card in cards
+        ],
     }
-
     cache.set(cache_key, data, CACHE_TIMEOUT)
     return JsonResponse(data)
 

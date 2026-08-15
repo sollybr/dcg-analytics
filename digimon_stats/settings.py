@@ -63,15 +63,33 @@ DIGIMON_IMAGE_SYNC = {
     # Git Trees API (used to get past the Contents API's ~1000-entry cap
     # on large directories).
     'GITHUB_BRANCH': os.getenv('DIGIMON_GITHUB_BRANCH', 'main'),
+    # Optional. A GitHub personal access token (no special scopes needed for
+    # a public repo) raises the API rate limit from 60/hr to 5000/hr and
+    # tends to make the Trees API more reliable under load. Safe to leave
+    # unset — falls back to unauthenticated requests.
+    'GITHUB_TOKEN': os.getenv('GITHUB_TOKEN', ''),
 
     # -------------------------------------------------------------------------
     # STORAGE BACKEND
     # -------------------------------------------------------------------------
-    # Options: 'vercel_blob', 's3', 'database'
-    'STORAGE_BACKEND': os.getenv('DIGIMON_STORAGE_BACKEND', 'vercel_blob'),
+    # Options: 'vercel_blob', 'r2', 'database'
+    'STORAGE_BACKEND': os.getenv('DIGIMON_STORAGE_BACKEND', 'r2'),
+
+    # --- Vercel Blob (legacy / kept for reference & possible fallback) ---
     'BLOB_READ_WRITE_TOKEN': os.getenv('BLOB_READ_WRITE_TOKEN', ''),
     'BLOB_UPLOAD_ENDPOINT': os.getenv('VERCEL_BLOB_ENDPOINT', 'https://blob.vercel-storage.com'),
     'BLOB_PATH_PREFIX': 'cards/',
+
+    # --- Cloudflare R2 (S3-compatible) ---
+    'R2_ACCOUNT_ID': os.getenv('R2_ACCOUNT_ID', ''),
+    'R2_ACCESS_KEY_ID': os.getenv('R2_ACCESS_KEY_ID', ''),
+    'R2_SECRET_ACCESS_KEY': os.getenv('R2_SECRET_ACCESS_KEY', ''),
+    'R2_BUCKET_NAME': os.getenv('R2_BUCKET_NAME', ''),
+    # Public base URL for reading objects back (Public Development URL or
+    # a Custom Domain attached to the bucket) — NOT the S3 API endpoint.
+    'R2_PUBLIC_BASE_URL': os.getenv('R2_PUBLIC_BASE_URL', ''),
+    # Key prefix inside the bucket, mirrors BLOB_PATH_PREFIX.
+    'R2_PATH_PREFIX': 'cards/',
 
     # -------------------------------------------------------------------------
     # ALTERNATE ART PATTERN MATCHING

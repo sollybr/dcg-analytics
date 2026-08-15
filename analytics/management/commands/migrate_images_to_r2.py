@@ -1,5 +1,7 @@
 import mimetypes
 import requests
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from django.conf import settings
 from botocore.exceptions import ClientError
@@ -51,12 +53,20 @@ class Command(SyncCommand):
             default=None,
             help='Only process the first N rows (useful for a quick test run).',
         )
+        parser.add_argument(
+            '--workers',
+            type=int,
+            default=8,
+            help='Number of concurrent download/upload threads (default: 8).',
+        )
 
     def handle(self, *args, **options):
         sync_config = getattr(settings, 'DIGIMON_IMAGE_SYNC', {})
         dry_run = options['dry_run']
         source_mode = options['source']
         limit = options['limit']
+        workers = max(1, options['workers'])
+        output_lock = threading.Lock()
 
         # --- Validate & build R2 client (reused from sync_card_images.Command) ---
         r2_bucket = sync_config.get('R2_BUCKET_NAME')
@@ -95,74 +105,79 @@ class Command(SyncCommand):
         if limit:
             queryset = queryset[:limit]
 
-        total = queryset.count() if not limit else min(limit, CardImage.objects.filter(storage_backend='vercel_blob').count())
-        self.stdout.write(f"Found {total} CardImage row(s) on Vercel Blob to migrate. Source mode: {source_mode}")
+        rows = list(queryset)  # materialize once — this is our work list, no further DB reads needed per-row
+        total = len(rows) if limit else CardImage.objects.filter(storage_backend='vercel_blob').count()
+        self.stdout.write(
+            f"Found {total} CardImage row(s) on Vercel Blob to migrate. "
+            f"Source mode: {source_mode}. Workers: {workers}."
+        )
 
-        migrated = 0
-        failed = 0
+        if dry_run:
+            for img in rows:
+                self.stdout.write(f"[dry-run] Would migrate {img.source_filename} (card {img.card.card_number})")
+            self.stdout.write(self.style.SUCCESS(f"\n[dry-run] {len(rows)} row(s) would be migrated."))
+            return
 
-        for img in queryset:
+        def fetch_bytes(img):
+            """Runs in a worker thread. Returns raw image bytes via the fallback chain. No DB access."""
             filename = img.source_filename
-            card_number = img.card.card_number
-            image_bytes = None
 
             if source_mode in ('auto', 'vercel'):
                 try:
                     res = requests.get(img.image_url, timeout=15)
                     if res.status_code == 200:
-                        image_bytes = res.content
+                        return res.content
                     elif source_mode == 'vercel':
-                        self.stderr.write(
-                            self.style.ERROR(f"Vercel fetch failed for {filename} ({res.status_code}); skipping (source=vercel).")
-                        )
+                        raise RuntimeError(f"Vercel fetch failed ({res.status_code})")
                 except requests.RequestException as e:
                     if source_mode == 'vercel':
-                        self.stderr.write(self.style.ERROR(f"Vercel fetch error for {filename}: {e}; skipping (source=vercel)."))
+                        raise RuntimeError(f"Vercel fetch error: {e}")
 
-            if image_bytes is None and source_mode in ('auto', 'github'):
+            if source_mode in ('auto', 'github'):
                 raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{images_path}/{filename}"
+                res = requests.get(raw_url, timeout=15)
+                if res.status_code == 200:
+                    return res.content
+                raise RuntimeError(f"GitHub fallback failed ({res.status_code})")
+
+            raise RuntimeError("Could not obtain image bytes (no source succeeded).")
+
+        def worker(img):
+            image_bytes = fetch_bytes(img)
+            mime_type = mimetypes.guess_type(img.source_filename)[0] or "image/png"
+            key = f"{r2_path_prefix.strip('/')}/{img.source_filename}"
+            public_url = self.upload_to_r2(r2_client, r2_bucket, key, image_bytes, mime_type, r2_public_base_url)
+            return public_url
+
+        migrated = 0
+        failed = 0
+
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            future_to_img = {executor.submit(worker, img): img for img in rows}
+
+            for future in as_completed(future_to_img):
+                img = future_to_img[future]
+                filename = img.source_filename
+                card_number = img.card.card_number
+
                 try:
-                    res = requests.get(raw_url, timeout=15)
-                    if res.status_code == 200:
-                        image_bytes = res.content
-                    else:
+                    public_url = future.result()
+                except (RuntimeError, ClientError) as e:
+                    failed += 1
+                    with output_lock:
                         self.stderr.write(
-                            self.style.ERROR(f"GitHub fallback failed for {filename} ({res.status_code}).")
+                            self.style.ERROR(f"Failed to migrate {filename} (card {card_number}): {e}")
                         )
-                except requests.RequestException as e:
-                    self.stderr.write(self.style.ERROR(f"GitHub fallback error for {filename}: {e}"))
+                    continue
 
-            if image_bytes is None:
-                failed += 1
-                self.stderr.write(
-                    self.style.ERROR(f"Could not obtain bytes for {filename} (card {card_number}); skipping.")
-                )
-                continue
+                # DB write stays on the main thread.
+                img.image_url = public_url
+                img.storage_backend = 'r2'
+                img.save(update_fields=['image_url', 'storage_backend'])
 
-            mime_type = mimetypes.guess_type(filename)[0] or "image/png"
-            key = f"{r2_path_prefix.strip('/')}/{filename}"
-
-            if dry_run:
-                self.stdout.write(
-                    f"[dry-run] Would migrate {filename} ({len(image_bytes)} bytes, card {card_number}) "
-                    f"-> r2://{r2_bucket}/{key}"
-                )
                 migrated += 1
-                continue
-
-            try:
-                public_url = self.upload_to_r2(r2_client, r2_bucket, key, image_bytes, mime_type, r2_public_base_url)
-            except ClientError as e:
-                failed += 1
-                self.stderr.write(self.style.ERROR(f"R2 upload failed for {filename}: {e}"))
-                continue
-
-            img.image_url = public_url
-            img.storage_backend = 'r2'
-            img.save(update_fields=['image_url', 'storage_backend'])
-
-            migrated += 1
-            self.stdout.write(self.style.SUCCESS(f"Migrated {filename} ({card_number}) -> {public_url}"))
+                with output_lock:
+                    self.stdout.write(self.style.SUCCESS(f"Migrated {filename} ({card_number}) -> {public_url}"))
 
         self.stdout.write(
             self.style.SUCCESS(f"\nMigration complete. Migrated: {migrated}, Failed: {failed}, Total: {total}")

@@ -3,6 +3,8 @@ import re
 import mimetypes
 import requests
 import boto3
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
 
@@ -30,6 +32,12 @@ class Command(BaseCommand):
                 'of which storage backend it was uploaded to. Cannot be '
                 'combined with --force.'
             ),
+        )
+        parser.add_argument(
+            '--workers',
+            type=int,
+            default=8,
+            help='Number of concurrent download/upload threads (default: 8).',
         )
 
     # Matches the actual card number prefix, e.g. "BT1-084", "AD1-004", "EX2-010".
@@ -219,10 +227,46 @@ class Command(BaseCommand):
             return None
         return blob_res.json().get("url")
 
+    def _download_and_upload(self, filename, raw_url, storage_backend, backend_ctx):
+        """
+        Runs inside a worker thread: download bytes from the source and
+        upload to whichever backend is configured. No DB access here —
+        all CardImage reads/writes happen back on the main thread to avoid
+        concurrent-write issues (especially with SQLite, which doesn't
+        handle concurrent writers well).
+
+        Returns the public URL on success. Raises on failure.
+        """
+        img_res = requests.get(raw_url, timeout=30)
+        if img_res.status_code != 200:
+            raise RuntimeError(f"Failed to download {raw_url} ({img_res.status_code})")
+
+        image_bytes = img_res.content
+        mime_type, _ = mimetypes.guess_type(filename)
+        mime_type = mime_type or "image/png"
+
+        if storage_backend == 'r2':
+            key = f"{backend_ctx['path_prefix'].strip('/')}/{filename}"
+            public_url = self.upload_to_r2(
+                backend_ctx['client'], backend_ctx['bucket'], key,
+                image_bytes, mime_type, backend_ctx['public_base_url'],
+            )
+        else:  # vercel_blob
+            public_url = self.upload_to_vercel_blob(
+                image_bytes, filename, mime_type,
+                backend_ctx['token'], backend_ctx['upload_endpoint'], backend_ctx['path_prefix'],
+            )
+            if public_url is None:
+                raise RuntimeError("Vercel Blob upload failed")
+
+        return public_url
+
     def handle(self, *args, **options):
         sync_config = getattr(settings, 'DIGIMON_IMAGE_SYNC', {})
         force = options['force'] or sync_config.get('OVERWRITE_EXISTING', False)
         only_missing = options['only_missing']
+        workers = max(1, options['workers'])
+        output_lock = threading.Lock()
 
         if force and only_missing:
             self.stderr.write(self.style.ERROR("--force and --only-missing are mutually exclusive."))
@@ -303,7 +347,16 @@ class Command(BaseCommand):
                 "and will be skipped entirely."
             )
 
-        synced_count = 0
+        # --- Phase 1: pre-filter sequentially (no network calls) ---
+        # Resolve which files actually need work before touching the network,
+        # so the thread pool only ever does useful downloads/uploads.
+        existing_pairs = set(
+            CardImage.objects.values_list('card_id', 'source_filename')
+        ) if not force else set()
+
+        card_lookup = {c.card_number.upper(): c for c in DigimonCard.objects.all()}
+
+        work_items = []
         skipped_count = 0
 
         for file_info in files:
@@ -313,18 +366,13 @@ class Command(BaseCommand):
             if file_info.get("type") != "file" or not raw_url:
                 continue
 
-            # Sample/preview images are watermarked placeholders, not real
-            # card art. The old (buggy) suffix-stripping regex accidentally
-            # filtered these out because it left "-Sample" glued onto the
-            # card number, causing a lookup miss. Now that lookup is fixed,
-            # exclude them explicitly instead of relying on that accident.
             if 'sample' in filename.lower():
                 skipped_count += 1
                 continue
 
             card_number, variant_type = self.parse_card_number(filename, alt_indicators)
+            card = card_lookup.get(card_number.upper())
 
-            card = DigimonCard.objects.filter(card_number__iexact=card_number).first()
             if not card:
                 self.stdout.write(
                     self.style.WARNING(f"Skipping {filename}: Card '{card_number}' not found in DB.")
@@ -335,62 +383,83 @@ class Command(BaseCommand):
                 skipped_count += 1
                 continue
 
-            existing_image = CardImage.objects.filter(card=card, source_filename=filename).first()
-            if existing_image and not force:
+            if not force and (card.id, filename) in existing_pairs:
                 skipped_count += 1
                 continue
 
-            self.stdout.write(f"Syncing {filename} ({variant_type}) for card {card_number}...")
-
-            img_res = requests.get(raw_url)
-            if img_res.status_code != 200:
-                self.stderr.write(self.style.ERROR(f"Failed to download {raw_url}"))
-                continue
-
-            image_bytes = img_res.content
-            mime_type, _ = mimetypes.guess_type(filename)
-            mime_type = mime_type or "image/png"
-
-            public_url = None
-
-            if storage_backend == 'r2':
-                key = f"{r2_path_prefix.strip('/')}/{filename}"
-                try:
-                    public_url = self.upload_to_r2(
-                        r2_client, r2_bucket, key, image_bytes, mime_type, r2_public_base_url
-                    )
-                except ClientError as e:
-                    self.stderr.write(self.style.ERROR(f"R2 upload failed for {filename}: {e}"))
-                    continue
-
-            elif storage_backend == 'vercel_blob':
-                public_url = self.upload_to_vercel_blob(
-                    image_bytes, filename, mime_type, blob_token, blob_upload_endpoint, blob_path_prefix
-                )
-                if public_url is None:
-                    continue
-
-            if not public_url:
-                self.stderr.write(self.style.ERROR(f"No public URL returned for {filename}, skipping."))
-                continue
-
-            has_primary = card.images.filter(is_primary=True).exists()
-            is_primary = (not has_primary) and (variant_type == 'standard')
-
-            CardImage.objects.update_or_create(
-                card=card,
-                source_filename=filename,
-                defaults={
-                    'image_url': public_url,
-                    'variant_type': variant_type,
-                    'is_primary': is_primary,
-                    'storage_backend': storage_backend,
-                },
-            )
-
-            synced_count += 1
-            self.stdout.write(self.style.SUCCESS(f"Synced {filename} -> {public_url}"))
+            work_items.append({
+                "filename": filename,
+                "raw_url": raw_url,
+                "card": card,
+                "variant_type": variant_type,
+            })
 
         self.stdout.write(
-            self.style.SUCCESS(f"\nSync complete! Synced: {synced_count}, Skipped: {skipped_count}")
+            f"{len(work_items)} image(s) to sync using {workers} worker thread(s) "
+            f"(skipped {skipped_count})..."
+        )
+
+        # --- Phase 2: parallel download + upload, sequential DB writes ---
+        if storage_backend == 'r2':
+            backend_ctx = {
+                'client': r2_client,
+                'bucket': r2_bucket,
+                'public_base_url': r2_public_base_url,
+                'path_prefix': r2_path_prefix,
+            }
+        else:
+            backend_ctx = {
+                'token': blob_token,
+                'upload_endpoint': blob_upload_endpoint,
+                'path_prefix': blob_path_prefix,
+            }
+
+        synced_count = 0
+        failed_count = 0
+
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            future_to_item = {
+                executor.submit(
+                    self._download_and_upload, item['filename'], item['raw_url'], storage_backend, backend_ctx
+                ): item
+                for item in work_items
+            }
+
+            for future in as_completed(future_to_item):
+                item = future_to_item[future]
+                filename = item['filename']
+                card = item['card']
+                variant_type = item['variant_type']
+
+                try:
+                    public_url = future.result()
+                except Exception as e:
+                    failed_count += 1
+                    with output_lock:
+                        self.stderr.write(self.style.ERROR(f"Failed to sync {filename}: {e}"))
+                    continue
+
+                # DB writes stay single-threaded here.
+                has_primary = card.images.filter(is_primary=True).exists()
+                is_primary = (not has_primary) and (variant_type == 'standard')
+
+                CardImage.objects.update_or_create(
+                    card=card,
+                    source_filename=filename,
+                    defaults={
+                        'image_url': public_url,
+                        'variant_type': variant_type,
+                        'is_primary': is_primary,
+                        'storage_backend': storage_backend,
+                    },
+                )
+
+                synced_count += 1
+                with output_lock:
+                    self.stdout.write(self.style.SUCCESS(f"Synced {filename} -> {public_url}"))
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"\nSync complete! Synced: {synced_count}, Skipped: {skipped_count}, Failed: {failed_count}"
+            )
         )

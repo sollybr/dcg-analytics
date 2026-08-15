@@ -300,19 +300,9 @@ export default function AdvancedStatisticsView({ onClose }) {
 
                 <div className="advanced-statistics-header">
                     <div>
-                        <span className="statistics-eyebrow">
-                            DIGITAL WORLD DATABASE
-                        </span>
-
-                        <h1>
-                            ADVANCED STATISTICS
-                        </h1>
-
-                        <p>
-                            Explore conditional
-                            distributions across
-                            the card database.
-                        </p>
+                        <span className="statistics-eyebrow">DIGITAL WORLD DATABASE</span>
+                        <h1>ADVANCED STATISTICS</h1>
+                        <p>Explore conditional distributions across the card database.</p>
                     </div>
 
                     <button
@@ -324,142 +314,88 @@ export default function AdvancedStatisticsView({ onClose }) {
                     </button>
                 </div>
 
-                {!selectedPreset && (
-                    <section className="advanced-statistics-menu">
-                        <div className="statistics-section-header">
-                            <div>
-                                <span>
-                                    ANALYSIS MODULE
-                                </span>
-
-                                <h2>
-                                    BUILD ANALYSIS
-                                </h2>
-                            </div>
-
-                            <span>
-                                {fieldOptions.length}
-                                {' '}FIELDS
-                            </span>
+                <section className="advanced-statistics-menu">
+                    <div className="statistics-section-header">
+                        <div>
+                            <span>ANALYSIS MODULE</span>
+                            <h2>BUILD ANALYSIS</h2>
                         </div>
+                        <span>{fieldOptions.length} FIELDS</span>
+                    </div>
 
-                        <div className="distribution-pair-builder">
-                            <div className="pair-field">
-                                <label htmlFor="given-field-select">
-                                    GIVEN
-                                </label>
-
-                                <select
-                                    id="given-field-select"
-                                    value={givenField}
-                                    onChange={(event) =>
-                                        setGivenField(event.target.value)
-                                    }
-                                >
-                                    <option value="">
-                                        SELECT FIELD...
-                                    </option>
-
-                                    {fieldOptions.map((field) => (
-                                        <option
-                                            key={field}
-                                            value={field}
-                                            disabled={field === targetField}
-                                        >
-                                            {getFieldLabel(field)}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <button
-                                type="button"
-                                className="pair-swap-button"
-                                onClick={swapFields}
-                                disabled={!givenField || !targetField}
-                                title="Swap given and target"
+                    <div className="distribution-pair-builder">
+                        <div className="pair-field">
+                            <label htmlFor="given-field-select">GIVEN</label>
+                            <select
+                                id="given-field-select"
+                                value={givenField}
+                                onChange={(event) => setGivenField(event.target.value)}
                             >
-                                ⇄
-                            </button>
-
-                            <div className="pair-field">
-                                <label htmlFor="target-field-select">
-                                    TARGET
-                                </label>
-
-                                <select
-                                    id="target-field-select"
-                                    value={targetField}
-                                    onChange={(event) =>
-                                        setTargetField(event.target.value)
-                                    }
-                                >
-                                    <option value="">
-                                        SELECT FIELD...
+                                <option value="">SELECT FIELD...</option>
+                                {fieldOptions.map((field) => (
+                                    <option key={field} value={field} disabled={field === targetField}>
+                                        {getFieldLabel(field)}
                                     </option>
-
-                                    {fieldOptions.map((field) => (
-                                        <option
-                                            key={field}
-                                            value={field}
-                                            disabled={field === givenField}
-                                        >
-                                            {getFieldLabel(field)}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                                ))}
+                            </select>
                         </div>
 
-                        {givenField && targetField && (
-                            <p className="query-description">
-                                {`See how ${getFieldLabel(targetField)} is distributed for a given ${getFieldLabel(givenField)}.`}
-                            </p>
-                        )}
-                    </section>
-                )}
+                        <button
+                            type="button"
+                            className="pair-swap-button"
+                            onClick={swapFields}
+                            disabled={!givenField || !targetField}
+                            title="Swap given and target"
+                        >
+                            ⇄
+                        </button>
+
+                        <div className="pair-field">
+                            <label htmlFor="target-field-select">TARGET</label>
+                            <select
+                                id="target-field-select"
+                                value={targetField}
+                                onChange={(event) => setTargetField(event.target.value)}
+                            >
+                                <option value="">SELECT FIELD...</option>
+                                {fieldOptions.map((field) => (
+                                    <option key={field} value={field} disabled={field === givenField}>
+                                        {getFieldLabel(field)}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                </section>
 
                 {selectedPreset && (
                     <>
                         <section className="advanced-statistics-query">
                             <div className="query-header">
                                 <div>
-                                    <span>
-                                        SELECTED ANALYSIS
-                                    </span>
-
-                                    <h2>
-                                        {selectedPreset.label}
-                                    </h2>
+                                    <span>SELECTED ANALYSIS</span>
+                                    <h2>{selectedPreset.label}</h2>
                                 </div>
 
                                 <button
                                     type="button"
                                     className="statistics-reset-button"
-                                    onClick={
-                                        resetAnalysis
-                                    }
+                                    onClick={resetAnalysis}
                                 >
-                                    CHANGE ANALYSIS
+                                    RESET ANALYSIS
                                 </button>
                             </div>
 
                             <p className="query-description">
-                                {
-                                    selectedPreset.description
-                                }
+                                {selectedPreset.description}
                             </p>
 
                             <div className="query-form">
                                 <div className="query-field">
-                                    <label
-                                        htmlFor="statistics-value"
-                                    >
-                                        {getFieldLabel(
-                                            selectedPreset.given
-                                        )}
+                                    <label htmlFor="statistics-value">
+                                        {getFieldLabel(selectedPreset.given)}
                                     </label>
-
+                                    
                                     <input
                                         id="statistics-value"
                                         type="text"

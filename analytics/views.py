@@ -3,7 +3,6 @@ import re
 from collections import Counter
 
 from django.conf import settings
-from django.core.cache import cache
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_http_methods
@@ -293,17 +292,10 @@ def cards_by_name(request):
             status=400,
         )
 
-    cache_key = f"cards_by_name:{name.casefold()}:{expansion.casefold()}"
-    cached_data = cache.get(cache_key)
-    if cached_data is not None:
-        return JsonResponse(cached_data)
-
-    cards = DigimonCard.objects.filter(name__iexact=name)
+    cards = DigimonCard.objects.filter(name__iexact=name).prefetch_related('images')
     cards = apply_expansion_filter(cards, expansion)
     cards = cards.order_by("card_number")
 
-    # Preload the expansion code -> name map once, instead of hitting
-    # CardExpansion per card (avoids N+1 queries).
     expansion_map = dict(
         CardExpansion.objects.values_list("expansion_code", "expansion_name")
     )
@@ -317,11 +309,20 @@ def cards_by_name(request):
                 **card.data,
                 "expansion": card.expansion,
                 "expansion_name": resolve_expansion_name(card.expansion, expansion_map),
+
+                "images": [
+                    {
+                        "image_url": img.image_url,
+                        "variant_type": img.variant_type,
+                        "is_primary": img.is_primary,
+                    }
+                    for img in card.images.all()
+                ]
             }
             for card in cards
         ],
     }
-    cache.set(cache_key, data, CACHE_TIMEOUT)
+    
     return JsonResponse(data)
 
 

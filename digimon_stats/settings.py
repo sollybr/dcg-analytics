@@ -50,6 +50,55 @@ else:
         }
     }
 
+DIGIMON_IMAGE_SYNC = {
+    # -------------------------------------------------------------------------
+    # SOURCE CONFIGURATION
+    # -------------------------------------------------------------------------
+    'SOURCE_TYPE': os.getenv('DIGIMON_IMAGE_SOURCE_TYPE', 'github_repo'),
+    'GITHUB_API_URL': os.getenv(
+        'DIGIMON_GITHUB_API_URL',
+        'https://api.github.com/repos/TakaOtaku/Digimon-Card-App/contents/src/assets/images/cards'
+    ),
+    # Branch to read from when fetching the full file tree via GitHub's
+    # Git Trees API (used to get past the Contents API's ~1000-entry cap
+    # on large directories).
+    'GITHUB_BRANCH': os.getenv('DIGIMON_GITHUB_BRANCH', 'main'),
+    # Optional. A GitHub personal access token (no special scopes needed for
+    # a public repo) raises the API rate limit from 60/hr to 5000/hr and
+    # tends to make the Trees API more reliable under load. Safe to leave
+    # unset — falls back to unauthenticated requests.
+    'GITHUB_TOKEN': os.getenv('GITHUB_TOKEN', ''),
+
+    # -------------------------------------------------------------------------
+    # STORAGE BACKEND
+    # -------------------------------------------------------------------------
+    # Options: 'vercel_blob', 'r2', 'database'
+    'STORAGE_BACKEND': os.getenv('DIGIMON_STORAGE_BACKEND', 'r2'),
+
+    # --- Vercel Blob (legacy / kept for reference & possible fallback) ---
+    'BLOB_READ_WRITE_TOKEN': os.getenv('BLOB_READ_WRITE_TOKEN', ''),
+    'BLOB_UPLOAD_ENDPOINT': os.getenv('VERCEL_BLOB_ENDPOINT', 'https://blob.vercel-storage.com'),
+    'BLOB_PATH_PREFIX': 'cards/',
+
+    # --- Cloudflare R2 (S3-compatible) ---
+    'R2_ACCOUNT_ID': os.getenv('R2_ACCOUNT_ID', ''),
+    'R2_ACCESS_KEY_ID': os.getenv('R2_ACCESS_KEY_ID', ''),
+    'R2_SECRET_ACCESS_KEY': os.getenv('R2_SECRET_ACCESS_KEY', ''),
+    'R2_BUCKET_NAME': os.getenv('R2_BUCKET_NAME', ''),
+    # Public base URL for reading objects back (Public Development URL or
+    # a Custom Domain attached to the bucket) — NOT the S3 API endpoint.
+    'R2_PUBLIC_BASE_URL': os.getenv('R2_PUBLIC_BASE_URL', ''),
+    # Key prefix inside the bucket, mirrors BLOB_PATH_PREFIX.
+    'R2_PATH_PREFIX': 'cards/',
+
+    # -------------------------------------------------------------------------
+    # ALTERNATE ART PATTERN MATCHING
+    # -------------------------------------------------------------------------
+    # Keywords in filename that denote an Alternate Art or Promo
+    # e.g., "BT1-084_P1.png" or "BT1-084_AA.png" or "BT1-084_PARALLEL.png"
+    'ALT_ART_INDICATORS': ['_P', '_AA', '_PARALLEL', '_PROMO', '_ALT'],
+}
+
 ROOT_URLCONF = 'digimon_stats.urls'
 
 TEMPLATES = [

@@ -1,22 +1,20 @@
-# import os
 import logging
 import re
 from collections import Counter
 
-from django.core.cache import cache
-from django.http import JsonResponse
-from django.views.decorators.http import require_GET
 from django.conf import settings
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET, require_http_methods
 
 from .card_sync import sync_cards
+from .statistics.associations import cramers_v_with_diagnostics
 from .models import DigimonCard, CardExpansion
-
 from .statistics.distributions import conditional_distribution
 from .statistics.schema import (
     get_analytics_fields,
     get_categorical_fields,
 )
-from .statistics.associations import cramers_v_with_diagnostics
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +24,7 @@ def natural_sort_key(item):
     """
     expansion_name = item[0]
     return [
-        int(text) if text.isdigit() else text.lower() 
+        int(text) if text.isdigit() else text.lower()
         for text in re.split(r'(\d+)', expansion_name)
     ]
 
@@ -38,14 +36,15 @@ def get_expansion_type(card_number):
     return match.group(1) if match else "Other"
 
 
+@require_http_methods(["POST", "GET"])
 def sync_cards_view(request):
-    expected_token = settings.CRON_SECRET # os.environ.get("CRON_SECRET") or os.environ.get("CARD_SYNC_TOKEN")
+    expected_token = getattr(settings, "CRON_SECRET", None)
 
-    # if not expected_token:
-    #     return JsonResponse(
-    #         {"error": "Server cron secret is not configured."},
-    #         status=500
-    #     )
+    if not expected_token:
+        return JsonResponse(
+            {"error": "Server cron secret is not configured."},
+            status=500,
+        )
 
     auth_header = request.headers.get("Authorization", "")
     token_from_header = ""
@@ -53,15 +52,15 @@ def sync_cards_view(request):
         token_from_header = auth_header.split("Bearer ")[1].strip()
 
     supplied_token = (
-        token_from_header or 
-        request.headers.get("X-Card-Sync-Token") or 
+        token_from_header or
+        request.headers.get("X-Card-Sync-Token") or
         request.GET.get("token")
     )
 
     if supplied_token != expected_token:
         return JsonResponse(
             {"error": "Unauthorized request."},
-            status=403
+            status=403,
         )
 
     try:
@@ -72,11 +71,9 @@ def sync_cards_view(request):
         return JsonResponse({"error": "An internal error has occurred."}, status=500)
 
 
-CACHE_TIMEOUT = 60 * 60 * 6
-
 class CardAnalyticsEngine:
     """
-    Encapsulates metric generation so they can be toggled on or off 
+    Encapsulates metric generation so they can be toggled on or off
     dynamically based on API request headers.
     """
     def __init__(self, cards):
@@ -84,7 +81,7 @@ class CardAnalyticsEngine:
 
     def get_types(self):
         counter = Counter(
-            c.card_type for c in self.cards 
+            c.card_type for c in self.cards
             if c.card_type and c.card_type != "-"
         )
         return {
@@ -103,14 +100,14 @@ class CardAnalyticsEngine:
     def get_colors(self, multi_limit=10):
         single_counter = Counter()
         multi_counter = Counter()
-        
+
         for c in self.cards:
             color = c.color or "Unknown"
             if "/" in color:
                 multi_counter[color] += 1
             else:
                 single_counter[color] += 1
-                
+
         top_multi = multi_counter.most_common(multi_limit)
         return {
             "single_color_labels": list(single_counter.keys()),
@@ -123,22 +120,21 @@ class CardAnalyticsEngine:
         exclude_prefixes = exclude_prefixes or []
         counter = Counter()
         expansion_types = {}
-        
+
         for c in self.cards:
             exp = c.expansion or "Other"
-            
-            # Skip this card if its expansion matches/starts with an excluded prefix
+
+            # Skip card if its expansion matches/starts with an excluded prefix
             if any(exp.upper().startswith(prefix) for prefix in exclude_prefixes):
                 continue
-                
+
             counter[exp] += 1
-            # Capture the expansion type once per expansion
             if exp not in expansion_types:
                 expansion_types[exp] = get_expansion_type(c.card_number)
-                
+
         sorted_exps = sorted(counter.items(), key=natural_sort_key)
         labels = [e for e, _ in sorted_exps]
-        
+
         return {
             "expansion_labels": labels,
             "expansion_data": [count for _, count in sorted_exps],
@@ -157,7 +153,7 @@ class CardAnalyticsEngine:
                             counter[cleaned] += 1
                 else:
                     counter[color] += 1
-                    
+
         return {
             "sec_color_labels": list(counter.keys()),
             "sec_color_data": list(counter.values()),
@@ -171,10 +167,9 @@ class CardAnalyticsEngine:
             if raw_subtype:
                 for val in raw_subtype.split("/"):
                     cleaned = val.strip()
-                    # Only count if it's valid and NOT in the exclusion list
                     if cleaned and cleaned != "-" and cleaned.lower() not in exclude_subtypes:
                         counter[cleaned] += 1
-                        
+
         top_subtypes = counter.most_common(limit)
         return {
             "subtype_labels": [s for s, _ in top_subtypes],
@@ -182,54 +177,54 @@ class CardAnalyticsEngine:
         }
 
 
+@require_GET
 def analytics_data(request):
     cards = DigimonCard.objects.all()
     engine = CardAnalyticsEngine(cards)
-    
+
     data = {
         "total_cards": cards.count(),
     }
-    
-    # Check for chart exclusions in headers (System config)
+
+    # Check for chart exclusions in headers
     exclude_header = request.headers.get("X-Exclude-Charts", "")
     excluded = [item.strip().lower() for item in exclude_header.split(",")] if exclude_header else []
-    
+
     # Check for expansion filters
     exclude_exp_param = request.GET.get("exclude_exp", "")
     excluded_expansions = [
-        item.strip().upper() 
-        for item in exclude_exp_param.split(",") 
+        item.strip().upper()
+        for item in exclude_exp_param.split(",")
         if item.strip()
     ]
 
-    # Check for subtype/trait filters (NEW)
+    # Check for subtype filters
     exclude_type_param = request.GET.get("exclude_type", "")
     excluded_types = [
-        item.strip() 
-        for item in exclude_type_param.split(",") 
+        item.strip()
+        for item in exclude_type_param.split(",")
         if item.strip()
     ]
-    
+
     if "types" not in excluded:
         data.update(engine.get_types())
-        
+
     if "names" not in excluded:
         data.update(engine.get_names())
-        
+
     if "colors" not in excluded:
         data.update(engine.get_colors())
-        
+
     if "expansions" not in excluded:
         data.update(engine.get_expansions(exclude_prefixes=excluded_expansions))
-        
+
     if "sec_colors" not in excluded:
         data.update(engine.get_sec_colors())
-        
+
     if "subtypes" not in excluded:
-        # Pass the filter list into the method
         data.update(engine.get_subtypes(exclude_subtypes=excluded_types))
 
-    return JsonResponse(data)  
+    return JsonResponse(data)
 
 
 from django.db.models import Q
@@ -282,6 +277,7 @@ def resolve_expansion_name(expansion_code: str, expansion_map: dict) -> str:
     return expansion_code
 
 
+@require_GET
 def cards_by_name(request):
     """
     Return all cards with a given English name.
@@ -296,17 +292,10 @@ def cards_by_name(request):
             status=400,
         )
 
-    cache_key = f"cards_by_name:{name.casefold()}:{expansion.casefold()}"
-    cached_data = cache.get(cache_key)
-    if cached_data is not None:
-        return JsonResponse(cached_data)
-
-    cards = DigimonCard.objects.filter(name__iexact=name)
+    cards = DigimonCard.objects.filter(name__iexact=name).prefetch_related('images')
     cards = apply_expansion_filter(cards, expansion)
     cards = cards.order_by("card_number")
 
-    # Preload the expansion code -> name map once, instead of hitting
-    # CardExpansion per card (avoids N+1 queries).
     expansion_map = dict(
         CardExpansion.objects.values_list("expansion_code", "expansion_name")
     )
@@ -320,11 +309,20 @@ def cards_by_name(request):
                 **card.data,
                 "expansion": card.expansion,
                 "expansion_name": resolve_expansion_name(card.expansion, expansion_map),
+
+                "images": [
+                    {
+                        "image_url": img.image_url,
+                        "variant_type": img.variant_type,
+                        "is_primary": img.is_primary,
+                    }
+                    for img in card.images.all()
+                ]
             }
             for card in cards
         ],
     }
-    cache.set(cache_key, data, CACHE_TIMEOUT)
+    
     return JsonResponse(data)
 
 
@@ -332,9 +330,7 @@ def cards_by_name(request):
 def statistics_schema(request):
     return JsonResponse({
         "fields": get_analytics_fields(),
-        "categorical_fields": list(
-            get_categorical_fields().keys()
-        ),
+        "categorical_fields": list(get_categorical_fields().keys()),
     })
 
 
@@ -364,10 +360,6 @@ def statistics_distribution(request):
             status=400,
         )
 
-    # Baseline comparison is on by default -- it's what lets the frontend
-    # tell "this is really skewed relative to the whole card pool" apart
-    # from "this just reflects the overall base rate." Allow opting out
-    # via ?baseline=0 since it costs a second query.
     include_baseline = request.GET.get("baseline", "1") != "0"
 
     result = conditional_distribution(
@@ -378,9 +370,6 @@ def statistics_distribution(request):
         include_baseline=include_baseline,
     )
 
-    # conditional_distribution already returns the full
-    # {given, target, sample_size, baseline_sample_size, distribution}
-    # shape -- no need to rebuild it here.
     return JsonResponse(result)
 
 
@@ -428,24 +417,32 @@ def statistics_association(request):
     })
 
 
-from django.core.paginator import Paginator
-
+@require_GET
 def cards_by_type(request):
     """
     Return paginated cards matching a specific subtype.
     Example: /api/cards-by-type/?type=Vaccine&page=1
     """
     card_type = request.GET.get("type", "").strip()
-    page_number = int(request.GET.get("page", 1))
 
     if not card_type:
         return JsonResponse({"error": "Missing type parameter."}, status=400)
 
+    try:
+        page_number = int(request.GET.get("page", 1))
+    except (ValueError, TypeError):
+        page_number = 1
+
     cards = DigimonCard.objects.filter(subtype__icontains=card_type).order_by("card_number")
 
-    # Paginate by 25 cards per request
     paginator = Paginator(cards, 25)
-    page_obj = paginator.get_page(page_number)
+
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
 
     data = {
         "type": card_type,
@@ -454,5 +451,5 @@ def cards_by_type(request):
         "current_page": page_obj.number,
         "cards": [card.data for card in page_obj.object_list],
     }
-    
+
     return JsonResponse(data)

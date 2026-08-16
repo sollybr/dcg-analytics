@@ -4,7 +4,6 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from django.conf import settings
-from botocore.exceptions import ClientError
 
 from analytics.models import CardImage
 from .sync_card_images import Command as SyncCommand
@@ -68,16 +67,19 @@ class Command(SyncCommand):
         workers = max(1, options['workers'])
         output_lock = threading.Lock()
 
-        # --- Validate & build R2 client (reused from sync_card_images.Command) ---
+        # --- Validate R2 config (uploads use a raw signed HTTP PUT, no client to build) ---
+        r2_account_id = sync_config.get('R2_ACCOUNT_ID')
+        r2_access_key = sync_config.get('R2_ACCESS_KEY_ID')
+        r2_secret_key = sync_config.get('R2_SECRET_ACCESS_KEY')
         r2_bucket = sync_config.get('R2_BUCKET_NAME')
         r2_public_base_url = sync_config.get('R2_PUBLIC_BASE_URL')
         r2_path_prefix = sync_config.get('R2_PATH_PREFIX', 'cards/')
 
         missing = [
             name for name, val in [
-                ('R2_ACCOUNT_ID', sync_config.get('R2_ACCOUNT_ID')),
-                ('R2_ACCESS_KEY_ID', sync_config.get('R2_ACCESS_KEY_ID')),
-                ('R2_SECRET_ACCESS_KEY', sync_config.get('R2_SECRET_ACCESS_KEY')),
+                ('R2_ACCOUNT_ID', r2_account_id),
+                ('R2_ACCESS_KEY_ID', r2_access_key),
+                ('R2_SECRET_ACCESS_KEY', r2_secret_key),
                 ('R2_BUCKET_NAME', r2_bucket),
                 ('R2_PUBLIC_BASE_URL', r2_public_base_url),
             ] if not val
@@ -85,8 +87,6 @@ class Command(SyncCommand):
         if missing:
             self.stderr.write(self.style.ERROR(f"Missing R2 config in DIGIMON_IMAGE_SYNC / env: {', '.join(missing)}"))
             return
-
-        r2_client = self.build_r2_client(sync_config)
 
         # --- Resolve GitHub source pieces for the fallback path ---
         github_api_url = sync_config.get('GITHUB_API_URL')
@@ -146,7 +146,10 @@ class Command(SyncCommand):
             image_bytes = fetch_bytes(img)
             mime_type = mimetypes.guess_type(img.source_filename)[0] or "image/png"
             key = f"{r2_path_prefix.strip('/')}/{img.source_filename}"
-            public_url = self.upload_to_r2(r2_client, r2_bucket, key, image_bytes, mime_type, r2_public_base_url)
+            public_url = self.upload_to_r2(
+                r2_account_id, r2_access_key, r2_secret_key,
+                r2_bucket, key, image_bytes, mime_type, r2_public_base_url,
+            )
             return public_url
 
         migrated = 0
@@ -162,7 +165,7 @@ class Command(SyncCommand):
 
                 try:
                     public_url = future.result()
-                except (RuntimeError, ClientError) as e:
+                except Exception as e:
                     failed += 1
                     with output_lock:
                         self.stderr.write(

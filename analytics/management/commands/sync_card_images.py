@@ -2,11 +2,11 @@ import os
 import re
 import mimetypes
 import requests
-import boto3
 import threading
+import hashlib
+import hmac
+import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from botocore.config import Config as BotoConfig
-from botocore.exceptions import ClientError
 
 from django.core.management.base import BaseCommand
 from django.conf import settings
@@ -38,6 +38,11 @@ class Command(BaseCommand):
             type=int,
             default=8,
             help='Number of concurrent download/upload threads (default: 8).',
+        )
+        parser.add_argument(
+            '--verbose',
+            action='store_true',
+            help='Print a line for every skipped file, not just the summary breakdown.',
         )
 
     # Matches the actual card number prefix, e.g. "BT1-084", "AD1-004", "EX2-010".
@@ -180,33 +185,77 @@ class Command(BaseCommand):
 
         return base_card_number, variant_type
 
-    def build_r2_client(self, sync_config):
-        """
-        Build a boto3 client pointed at Cloudflare R2's S3-compatible endpoint.
-        R2 requires region_name='auto' and the account-scoped endpoint URL —
-        everything else matches standard S3 usage.
-        """
-        account_id = sync_config.get('R2_ACCOUNT_ID')
-        access_key = sync_config.get('R2_ACCESS_KEY_ID')
-        secret_key = sync_config.get('R2_SECRET_ACCESS_KEY')
+    @staticmethod
+    def _sigv4_sign(key, msg):
+        return hmac.new(key, msg.encode('utf-8'), hashlib.sha256).digest()
 
-        return boto3.client(
-            's3',
-            endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            region_name='auto',
-            config=BotoConfig(signature_version='s3v4'),
+    def _sigv4_signing_key(self, secret_key, date_stamp, region, service):
+        k_date = self._sigv4_sign(('AWS4' + secret_key).encode('utf-8'), date_stamp)
+        k_region = self._sigv4_sign(k_date, region)
+        k_service = self._sigv4_sign(k_region, service)
+        return self._sigv4_sign(k_service, 'aws4_request')
+
+    def upload_to_r2(self, account_id, access_key, secret_key, bucket, key, image_bytes, mime_type, public_base_url):
+        """
+        Upload bytes to R2 via a hand-signed AWS SigV4 PUT request over plain
+        `requests` — deliberately avoids boto3/botocore, which are large
+        enough (mainly botocore's per-service data files) to push a Vercel
+        Python function bundle close to its size ceiling, even though R2 is
+        the only thing that ever needed them.
+
+        R2 is S3-API-compatible: service='s3', region='auto'.
+        """
+        method = 'PUT'
+        service = 's3'
+        region = 'auto'
+        host = f"{account_id}.r2.cloudflarestorage.com"
+        url = f"https://{host}/{bucket}/{key}"
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        amz_date = now.strftime('%Y%m%dT%H%M%SZ')
+        date_stamp = now.strftime('%Y%m%d')
+
+        payload_hash = hashlib.sha256(image_bytes).hexdigest()
+
+        canonical_uri = f"/{bucket}/{key}"
+        canonical_headers = (
+            f"content-type:{mime_type}\n"
+            f"host:{host}\n"
+            f"x-amz-content-sha256:{payload_hash}\n"
+            f"x-amz-date:{amz_date}\n"
+        )
+        signed_headers = 'content-type;host;x-amz-content-sha256;x-amz-date'
+
+        canonical_request = "\n".join([
+            method, canonical_uri, '', canonical_headers, signed_headers, payload_hash,
+        ])
+
+        algorithm = 'AWS4-HMAC-SHA256'
+        credential_scope = f"{date_stamp}/{region}/{service}/aws4_request"
+        string_to_sign = "\n".join([
+            algorithm, amz_date, credential_scope,
+            hashlib.sha256(canonical_request.encode('utf-8')).hexdigest(),
+        ])
+
+        signing_key = self._sigv4_signing_key(secret_key, date_stamp, region, service)
+        signature = hmac.new(signing_key, string_to_sign.encode('utf-8'), hashlib.sha256).hexdigest()
+
+        authorization = (
+            f"{algorithm} Credential={access_key}/{credential_scope}, "
+            f"SignedHeaders={signed_headers}, Signature={signature}"
         )
 
-    def upload_to_r2(self, client, bucket, key, image_bytes, mime_type, public_base_url):
-        """Upload bytes to R2 and return the public URL for the object."""
-        client.put_object(
-            Bucket=bucket,
-            Key=key,
-            Body=image_bytes,
-            ContentType=mime_type,
-        )
+        headers = {
+            'Content-Type': mime_type,
+            'X-Amz-Content-SHA256': payload_hash,
+            'X-Amz-Date': amz_date,
+            'Authorization': authorization,
+        }
+
+        response = requests.put(url, data=image_bytes, headers=headers, timeout=60)
+        if response.status_code not in (200, 201):
+            raise RuntimeError(f"R2 upload failed ({response.status_code}): {response.text}")
+
         return f"{public_base_url.rstrip('/')}/{key}"
 
     def upload_to_vercel_blob(self, image_bytes, filename, mime_type, blob_token, upload_endpoint, path_prefix):
@@ -248,8 +297,8 @@ class Command(BaseCommand):
         if storage_backend == 'r2':
             key = f"{backend_ctx['path_prefix'].strip('/')}/{filename}"
             public_url = self.upload_to_r2(
-                backend_ctx['client'], backend_ctx['bucket'], key,
-                image_bytes, mime_type, backend_ctx['public_base_url'],
+                backend_ctx['account_id'], backend_ctx['access_key'], backend_ctx['secret_key'],
+                backend_ctx['bucket'], key, image_bytes, mime_type, backend_ctx['public_base_url'],
             )
         else:  # vercel_blob
             public_url = self.upload_to_vercel_blob(
@@ -266,6 +315,7 @@ class Command(BaseCommand):
         force = options['force'] or sync_config.get('OVERWRITE_EXISTING', False)
         only_missing = options['only_missing']
         workers = max(1, options['workers'])
+        verbose = options['verbose']
         output_lock = threading.Lock()
 
         if force and only_missing:
@@ -278,7 +328,9 @@ class Command(BaseCommand):
         storage_backend = sync_config.get('STORAGE_BACKEND', 'r2')
         alt_indicators = sync_config.get('ALT_ART_INDICATORS', ['_P', '_AA', '_PARALLEL', '_PROMO', '_ALT'])
 
-        r2_client = None
+        r2_account_id = None
+        r2_access_key = None
+        r2_secret_key = None
         r2_bucket = None
         r2_public_base_url = None
         r2_path_prefix = None
@@ -288,15 +340,18 @@ class Command(BaseCommand):
         blob_path_prefix = None
 
         if storage_backend == 'r2':
+            r2_account_id = sync_config.get('R2_ACCOUNT_ID')
+            r2_access_key = sync_config.get('R2_ACCESS_KEY_ID')
+            r2_secret_key = sync_config.get('R2_SECRET_ACCESS_KEY')
             r2_bucket = sync_config.get('R2_BUCKET_NAME')
             r2_public_base_url = sync_config.get('R2_PUBLIC_BASE_URL')
             r2_path_prefix = sync_config.get('R2_PATH_PREFIX', 'cards/')
 
             missing = [
                 name for name, val in [
-                    ('R2_ACCOUNT_ID', sync_config.get('R2_ACCOUNT_ID')),
-                    ('R2_ACCESS_KEY_ID', sync_config.get('R2_ACCESS_KEY_ID')),
-                    ('R2_SECRET_ACCESS_KEY', sync_config.get('R2_SECRET_ACCESS_KEY')),
+                    ('R2_ACCOUNT_ID', r2_account_id),
+                    ('R2_ACCESS_KEY_ID', r2_access_key),
+                    ('R2_SECRET_ACCESS_KEY', r2_secret_key),
                     ('R2_BUCKET_NAME', r2_bucket),
                     ('R2_PUBLIC_BASE_URL', r2_public_base_url),
                 ] if not val
@@ -306,8 +361,6 @@ class Command(BaseCommand):
                     self.style.ERROR(f"Missing R2 config in DIGIMON_IMAGE_SYNC / env: {', '.join(missing)}")
                 )
                 return
-
-            r2_client = self.build_r2_client(sync_config)
 
         elif storage_backend == 'vercel_blob':
             blob_token = sync_config.get('BLOB_READ_WRITE_TOKEN') or os.getenv('BLOB_READ_WRITE_TOKEN')
@@ -357,7 +410,17 @@ class Command(BaseCommand):
         card_lookup = {c.card_number.upper(): c for c in DigimonCard.objects.all()}
 
         work_items = []
-        skipped_count = 0
+        skip_reasons = {
+            'sample_image': 0,
+            'card_not_found': 0,
+            'only_missing': 0,
+            'already_synced': 0,
+        }
+
+        def log_skip(reason_key, message):
+            skip_reasons[reason_key] += 1
+            if verbose:
+                self.stdout.write(f"Skipping {filename}: {message}")
 
         for file_info in files:
             filename = file_info.get("name")
@@ -367,24 +430,28 @@ class Command(BaseCommand):
                 continue
 
             if 'sample' in filename.lower():
-                skipped_count += 1
+                log_skip('sample_image', "watermarked sample/preview image, not real card art")
                 continue
 
             card_number, variant_type = self.parse_card_number(filename, alt_indicators)
             card = card_lookup.get(card_number.upper())
 
             if not card:
+                # Always shown — this one usually indicates a real data gap
+                # (parsing issue or a card genuinely missing from the DB),
+                # not routine/expected skip noise.
                 self.stdout.write(
                     self.style.WARNING(f"Skipping {filename}: Card '{card_number}' not found in DB.")
                 )
+                skip_reasons['card_not_found'] += 1
                 continue
 
             if only_missing and card.card_number in cards_with_images:
-                skipped_count += 1
+                log_skip('only_missing', f"card '{card.card_number}' already has at least one image (--only-missing)")
                 continue
 
             if not force and (card.id, filename) in existing_pairs:
-                skipped_count += 1
+                log_skip('already_synced', f"already synced for card '{card.card_number}'")
                 continue
 
             work_items.append({
@@ -394,15 +461,24 @@ class Command(BaseCommand):
                 "variant_type": variant_type,
             })
 
+        total_skipped = sum(skip_reasons.values())
         self.stdout.write(
             f"{len(work_items)} image(s) to sync using {workers} worker thread(s) "
-            f"(skipped {skipped_count})..."
+            f"(skipped {total_skipped}: "
+            f"{skip_reasons['already_synced']} already synced, "
+            f"{skip_reasons['only_missing']} excluded by --only-missing, "
+            f"{skip_reasons['sample_image']} sample images, "
+            f"{skip_reasons['card_not_found']} card not found)"
+            + ("" if verbose else " — pass --verbose to see each skipped file")
+            + "..."
         )
 
         # --- Phase 2: parallel download + upload, sequential DB writes ---
         if storage_backend == 'r2':
             backend_ctx = {
-                'client': r2_client,
+                'account_id': r2_account_id,
+                'access_key': r2_access_key,
+                'secret_key': r2_secret_key,
                 'bucket': r2_bucket,
                 'public_base_url': r2_public_base_url,
                 'path_prefix': r2_path_prefix,
@@ -460,6 +536,13 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"\nSync complete! Synced: {synced_count}, Skipped: {skipped_count}, Failed: {failed_count}"
+                f"\nSync complete! Synced: {synced_count}, Skipped: {total_skipped}, Failed: {failed_count}"
             )
         )
+        if not verbose and total_skipped:
+            self.stdout.write(
+                f"  ({skip_reasons['already_synced']} already synced, "
+                f"{skip_reasons['only_missing']} excluded by --only-missing, "
+                f"{skip_reasons['sample_image']} sample images, "
+                f"{skip_reasons['card_not_found']} card not found)"
+            )

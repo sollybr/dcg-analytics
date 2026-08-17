@@ -99,7 +99,7 @@ body {
 .digi-card-back {
   transform: rotateY(180deg);
   overflow-y: auto;
-  box-sizing: border-box; /* Prevents padding from stretching the card */
+  box-sizing: border-box; 
   display: flex;
   flex-direction: column;
 }
@@ -173,17 +173,19 @@ body {
   left: 10px;
   right: 10px;
   display: flex;
-  justify-content: space-between;
+  justify-content: center; 
   align-items: center;
-  background: rgba(0, 0, 0, 0.7);
-  padding: 6px 12px;
-  border-radius: 20px;
-  backdrop-filter: blur(4px);
+  pointer-events: none; 
 }
 
 .art-dots {
   display: flex;
   gap: 6px;
+  background: rgba(0, 0, 0, 0.7); 
+  padding: 6px 12px;
+  border-radius: 20px;
+  backdrop-filter: blur(4px);
+  pointer-events: auto; 
 }
 
 .art-dot {
@@ -212,7 +214,6 @@ body {
 }
 
 .digi-flip-btn, .digi-flip-back-btn {
-  background: transparent;
   color: #00f3ff;
   border: 1px solid #00f3ff;
   padding: 4px 10px;
@@ -224,14 +225,23 @@ body {
   transition: all 0.2s;
 }
 
-.digi-flip-btn:hover, .digi-flip-back-btn:hover {
-  background: #00f3ff;
-  color: #000;
+.digi-flip-btn {
+  position: absolute;
+  right: 0;
+  background: rgba(0, 0, 0, 0.7); 
+  backdrop-filter: blur(4px);
+  pointer-events: auto;
 }
 
 .digi-flip-back-btn {
+  background: transparent;
   width: 100%;
   margin-bottom: 10px;
+}
+
+.digi-flip-btn:hover, .digi-flip-back-btn:hover {
+  background: #00f3ff;
+  color: #000;
 }
 @media (max-width: 900px) { .digi-grid { grid-template-columns: 1fr; } }
 
@@ -512,10 +522,6 @@ body {
   box-shadow: none;
 }
 
-/* ==========================================================================
-   Advanced Statistics view
-   ========================================================================== */
-
 .advanced-statistics {
   display: flex;
   flex-direction: column;
@@ -559,8 +565,6 @@ body {
   color: #94a3b8;
 }
 
-/* -- section headers shared by menu + query steps -- */
-
 .statistics-section-header {
   display: flex;
   justify-content: space-between;
@@ -593,8 +597,6 @@ body {
   padding: 4px 12px;
   border-radius: 999px;
 }
-
-/* -- given/target pair builder -- */
 
 .distribution-pair-builder {
   display: flex;
@@ -682,8 +684,6 @@ body {
     align-self: center;
   }
 }
-
-/* -- query form -- */
 
 .advanced-statistics-query {
   background-color: #0f172a;
@@ -832,8 +832,6 @@ body {
   border: 1px solid rgba(255, 102, 0, 0.4);
 }
 
-/* -- field-level association callout -- */
-
 .statistics-association {
   background-color: #0f172a;
   border: 1px solid #1e293b;
@@ -881,7 +879,7 @@ body {
   color: #ef4444;
 }
 
-/* -- state panels: error / loading / empty -- */
+
 
 .advanced-statistics-error,
 .advanced-statistics-loading,
@@ -951,7 +949,7 @@ body {
   color: #00f3ff;
 }
 
-/* -- results: summary metrics + distribution table -- */
+
 
 .statistics-summary {
   display: grid;

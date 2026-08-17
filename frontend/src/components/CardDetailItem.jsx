@@ -78,7 +78,7 @@ export default function CardDetailItem({ card, index, selectedCardName }) {
             <p><strong>EXPANSION:</strong> {getCardExpansion(card)}</p>
             <p><strong>COLOR:</strong> {colors.join(' / ')}</p>
             <p><strong>CARD TYPE:</strong> {card.cardType || 'N/A'}</p>
-            {types.length > 0 && <p><strong>TYPE:</strong> {types.join(' / ')}</p>}
+            {types.length > 0 && <p><strong>TYPE(S):</strong> {types.join(' / ')}</p>}
             {level !== null && <p><strong>LEVEL:</strong> Lv.{level}</p>}
             {card.playCost !== undefined && card.playCost !== null && card.playCost !== '-' && (
               <p><strong>PLAY COST:</strong> {card.playCost}</p>

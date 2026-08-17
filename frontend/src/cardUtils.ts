@@ -101,7 +101,7 @@ export const getCardExpansion = (card: DigimonCard): string => {
 };
 
 export const getCardTypes = (card: DigimonCard): string[] => {
-  const raw = card.cardType || card.type || card.types;
+  const raw = card.subtypes || card.type || card.types;
 
   if (!raw) {
     return [];

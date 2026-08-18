@@ -278,7 +278,7 @@ export default function Dashboard() {
             className="digi-menu-button"
             onClick={() => setActiveScreen('advanced')}
         >
-            ADVANCED STATISTICS
+            MORE DISTRIBUTIONS
         </button>
     </div>
     <div className="digi-grid">

@@ -169,7 +169,7 @@ body {
 
 .digi-art-controls {
   position: absolute;
-  bottom: 10px;
+  top: 10px;
   left: 10px;
   right: 10px;
   display: flex;
@@ -181,11 +181,17 @@ body {
 .art-dots {
   display: flex;
   gap: 6px;
-  background: rgba(0, 0, 0, 0.7); 
+  background: rgba(0, 0, 0, 0.7);
   padding: 6px 12px;
   border-radius: 20px;
-  backdrop-filter: blur(4px);
-  pointer-events: auto; 
+  pointer-events: auto;
+  max-width: calc(100% - 160px); 
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.art-dots::-webkit-scrollbar {
+  display: none;
 }
 
 .art-dot {
@@ -197,6 +203,7 @@ body {
   cursor: pointer;
   transition: all 0.2s;
   padding: 0;
+  flex-shrink: 0;
 }
 
 .art-dot:hover {
@@ -229,7 +236,6 @@ body {
   position: absolute;
   right: 0;
   background: rgba(0, 0, 0, 0.7); 
-  backdrop-filter: blur(4px);
   pointer-events: auto;
 }
 
@@ -356,7 +362,7 @@ body {
 
 .card-type-list-container {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
   padding: 20px 0;
   width: 100%;

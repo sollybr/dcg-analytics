@@ -433,9 +433,9 @@ def cards_by_type(request):
     except (ValueError, TypeError):
         page_number = 1
 
-    cards = DigimonCard.objects.filter(subtype__icontains=card_type).order_by("card_number")
+    cards = DigimonCard.objects.filter(subtype__icontains=card_type).order_by("card_number").prefetch_related('images')
 
-    paginator = Paginator(cards, 25)
+    paginator = Paginator(cards, 15)
 
     try:
         page_obj = paginator.page(page_number)
@@ -444,12 +444,32 @@ def cards_by_type(request):
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
 
+    expansion_map = dict(
+        CardExpansion.objects.values_list("expansion_code", "expansion_name")
+    )
+
     data = {
         "type": card_type,
         "total_count": paginator.count,
         "total_pages": paginator.num_pages,
         "current_page": page_obj.number,
-        "cards": [card.data for card in page_obj.object_list],
+        "cards": [
+            {
+                **card.data,
+                "expansion": card.expansion,
+                "expansion_name": resolve_expansion_name(card.expansion, expansion_map),
+
+                "images": [
+                    {
+                        "image_url": img.image_url,
+                        "variant_type": img.variant_type,
+                        "is_primary": img.is_primary,
+                    }
+                    for img in card.images.all()
+                ]
+            }
+            for card in page_obj.object_list
+        ],
     }
 
     return JsonResponse(data)

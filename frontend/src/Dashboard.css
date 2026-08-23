@@ -314,6 +314,12 @@ body {
   margin-bottom: 24px;
 }
 
+@media (max-width: 600px) {
+    .digi-dashboard-menu {
+        justify-content: center;
+    }
+}
+
 .digi-menu-button {
   background-color: transparent;
   color: #00f3ff;

@@ -102,9 +102,11 @@ class CardAnalyticsEngine:
         multi_counter = Counter()
 
         for c in self.cards:
-            color = c.color or "Unknown"
+            color = (c.color or "Unknown").strip()
             if "/" in color:
-                multi_counter[color] += 1
+                parts = sorted(p.strip() for p in color.split("/") if p.strip())
+                normalized = "/".join(parts)
+                multi_counter[normalized] += 1
             else:
                 single_counter[color] += 1
 

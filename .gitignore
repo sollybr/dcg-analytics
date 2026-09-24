@@ -9,3 +9,6 @@ __pycache__/
 /.vs
 
 *.sqlite3
+/tests/local/*.py
+!__init__.py
+!**/__init__.py

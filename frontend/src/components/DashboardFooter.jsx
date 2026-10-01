@@ -54,7 +54,7 @@ export default function DashboardFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Digimon Card Atlas by DARKSOLARIS
+                Digimon Card Atlas
               </a>
             </li>
           </ul>

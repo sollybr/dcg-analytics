@@ -45,8 +45,23 @@ export default function DashboardFooter() {
         </div>
 
         <div className="footer-section">
-          <h3>LEGAL DISCLAIMER</h3>
+          <h3>COMMUNITY TOOLS</h3>
+          <ul className="footer-links">
+            <li>
+              Card translations & effects support:{' '}
+              <a
+                href="https://digimoncardatlas.com"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Digimon Card Atlas by DARKSOLARIS
+              </a>
+            </li>
+          </ul>
+        </div>
 
+        <div className="footer-section">
+          <h3>LEGAL DISCLAIMER</h3>
           <p>
             This application is an unofficial,
             non-commercial fan project. All card artwork,

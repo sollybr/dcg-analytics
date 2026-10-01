@@ -10,7 +10,7 @@ charset-normalizer==3.4.9
     # via requests
 dj-database-url==3.1.2
     # via card-analyzer-dcg
-django==6.0.7
+django==6.0.8
     # via
     #   card-analyzer-dcg
     #   dj-database-url

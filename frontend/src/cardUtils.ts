@@ -76,14 +76,61 @@ export const getColors = (
     return [];
   }
 
+  const mixColors = (colorValues: string[]): string => {
+    const rgbValues = colorValues
+      .map((color) => color.replace('#', ''))
+      .filter((hex) => /^[0-9a-fA-F]{6}$/.test(hex))
+      .map((hex) => ({
+        r: parseInt(hex.slice(0, 2), 16),
+        g: parseInt(hex.slice(2, 4), 16),
+        b: parseInt(hex.slice(4, 6), 16),
+      }));
+
+    if (rgbValues.length === 0) {
+      return COLOR_MAP.Unknown;
+    }
+
+    const mixed = rgbValues.reduce(
+      (acc, rgb) => ({
+        r: acc.r + rgb.r,
+        g: acc.g + rgb.g,
+        b: acc.b + rgb.b,
+      }),
+      { r: 0, g: 0, b: 0 }
+    );
+
+    const count = rgbValues.length;
+
+    return (
+      '#' +
+      [mixed.r, mixed.g, mixed.b]
+        .map((value) =>
+          Math.round(value / count)
+            .toString(16)
+            .padStart(2, '0')
+        )
+        .join('')
+    );
+  };
+
   return colors.map((label) => {
     if (COLOR_MAP[label]) {
       return COLOR_MAP[label];
     }
 
     if (typeof label === 'string' && label.includes('/')) {
-      const primary = label.split('/')[0].trim();
-      return COLOR_MAP[primary] || COLOR_MAP.Unknown;
+      const parts = label
+        .split('/')
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+      const mappedColors = parts
+        .map((part) => COLOR_MAP[part])
+        .filter(Boolean);
+
+      return mappedColors.length > 0
+        ? mixColors(mappedColors)
+        : COLOR_MAP.Unknown;
     }
 
     return COLOR_MAP.Unknown;

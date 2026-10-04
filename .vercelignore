@@ -1,4 +1,5 @@
-.venv
+.venv*
+.vercel
 myenv
 myenv-wsl
 __pycache__
@@ -8,3 +9,4 @@ node_modules
 .git
 media/
 staticfiles/
+frontend/dist

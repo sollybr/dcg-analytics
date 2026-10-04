@@ -1,3 +1,4 @@
+import { lazy } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -31,12 +32,12 @@ import {
 import { fetchAnalytics, fetchCardsByName, fetchCardsByType } from './api';
 import { useState, useEffect, useRef } from 'react';
 
-import AnalyticsChart from './components/AnalyticsChart';
+const AnalyticsChart = lazy(() => import('./components/AnalyticsChart'));
 import DashboardHeader from './components/DashboardHeader';
 import DashboardFooter from './components/DashboardFooter';
-import CardDetailView from './components/CardDetailView';
-import CardTypeDetailView from './components/CardTypeDetailView';
-import AdvancedStatisticsView from './components/AdvancedStatisticsView';
+const CardDetailView = lazy(() => import('./components/CardDetailView'));
+const CardTypeDetailView = lazy(() => import('./components/CardTypeDetailView'));
+const AdvancedStatisticsView = lazy(() => import('./components/AdvancedStatisticsView'));
 
 import './Dashboard.css';
 

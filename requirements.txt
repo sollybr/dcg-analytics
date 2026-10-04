@@ -2,15 +2,20 @@
 #    uv export --no-hashes --format requirements-txt
 asgiref==3.12.1
     # via
+    #   card-analyzer-dcg
     #   django
     #   django-cors-headers
 certifi==2026.7.22
-    # via requests
+    # via
+    #   card-analyzer-dcg
+    #   requests
 charset-normalizer==3.4.9
-    # via requests
+    # via
+    #   card-analyzer-dcg
+    #   requests
 dj-database-url==3.1.2
     # via card-analyzer-dcg
-django==6.0.7
+django==6.0.8
     # via
     #   card-analyzer-dcg
     #   dj-database-url
@@ -23,20 +28,29 @@ djangorestframework==3.18.0
 gunicorn==26.0.0
     # via card-analyzer-dcg
 idna==3.18
-    # via requests
+    # via
+    #   card-analyzer-dcg
+    #   requests
 packaging==26.2
-    # via gunicorn
+    # via
+    #   card-analyzer-dcg
+    #   gunicorn
 psycopg==3.3.4
     # via card-analyzer-dcg
 psycopg-binary==3.3.4 ; implementation_name != 'pypy'
-    # via psycopg
+    # via
+    #   card-analyzer-dcg
+    #   psycopg
 requests==2.34.2
     # via card-analyzer-dcg
 sqlparse==0.6.0
-    # via django
+    # via
+    #   card-analyzer-dcg
+    #   django
 tzdata==2026.3 ; sys_platform == 'win32'
     # via
+    #   card-analyzer-dcg
     #   django
     #   psycopg
-urllib3==2.7.0
+urllib3==2.8.0
     # via requests

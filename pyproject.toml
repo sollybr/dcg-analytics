@@ -13,7 +13,6 @@ dependencies = [
     "gunicorn==26.0.0",
     "idna==3.18",
     "packaging==26.2",
-    "psycopg-binary==3.3.4 ; implementation_name != 'pypy'",
     "psycopg[binary]==3.3.4",
     "requests==2.34.2",
     "sqlparse==0.6.0",

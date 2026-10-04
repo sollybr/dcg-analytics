@@ -1,14 +1,6 @@
 version = 1
 revision = 3
 requires-python = ">=3.13"
-resolution-markers = [
-    "python_full_version >= '3.14' and sys_platform == 'win32'",
-    "python_full_version >= '3.14' and sys_platform == 'emscripten'",
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
-    "python_full_version < '3.14' and sys_platform == 'win32'",
-    "python_full_version < '3.14' and sys_platform == 'emscripten'",
-    "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
-]
 
 [[package]]
 name = "asgiref"
@@ -35,7 +27,6 @@ dependencies = [
     { name = "idna" },
     { name = "packaging" },
     { name = "psycopg", extra = ["binary"] },
-    { name = "psycopg-binary", marker = "implementation_name != 'pypy'" },
     { name = "requests" },
     { name = "sqlparse" },
     { name = "tzdata", marker = "sys_platform == 'win32'" },
@@ -55,7 +46,6 @@ requires-dist = [
     { name = "idna", specifier = "==3.18" },
     { name = "packaging", specifier = "==26.2" },
     { name = "psycopg", extras = ["binary"], specifier = "==3.3.4" },
-    { name = "psycopg-binary", marker = "implementation_name != 'pypy'", specifier = "==3.3.4" },
     { name = "requests", specifier = "==2.34.2" },
     { name = "sqlparse", specifier = "==0.6.0" },
     { name = "tzdata", marker = "sys_platform == 'win32'", specifier = "==2026.3" },

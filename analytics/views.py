@@ -229,7 +229,7 @@ def analytics_data(request):
     return JsonResponse(data)
 
 
-from django.db.models import Q
+from django.db.models import Count, Q
 from rest_framework import generics
 from .serializers import DigimonCardSerializer
 
@@ -475,3 +475,96 @@ def cards_by_type(request):
     }
 
     return JsonResponse(data)
+
+
+# Fields /api/field-options/ can list values for. The bool says whether the
+# stored string is a "/"-separated list ("Red/Blue") that should be split
+# into individual values. Keep the keys in sync with DEFAULT_FIELD_OPTIONS
+# in the frontend's fieldOptions.ts.
+FIELD_OPTION_FIELDS = {
+    "name": False,
+    "color": True,
+    "rarity": False,
+    "expansion": False,
+    "subtype": True,
+    "card_type": False,
+}
+
+FIELD_OPTIONS_DEFAULT_LIMIT = 20
+FIELD_OPTIONS_MAX_LIMIT = 100
+
+
+@require_GET
+def field_options(request):
+    """
+    Distinct values (with card counts) for one card field, for autocomplete.
+    Example: /api/field-options/?field=subtype&q=vac&limit=20
+
+    Matching is a case-insensitive substring on each individual value;
+    results that start with `q` come first, then by count.
+    """
+    field = request.GET.get("field", "")
+
+    if field not in FIELD_OPTION_FIELDS:
+        return JsonResponse(
+            {"error": f"Invalid field: {field}"},
+            status=400,
+        )
+
+    query = request.GET.get("q", "").strip()
+
+    try:
+        limit = int(request.GET.get("limit", FIELD_OPTIONS_DEFAULT_LIMIT))
+    except (TypeError, ValueError):
+        limit = FIELD_OPTIONS_DEFAULT_LIMIT
+    limit = max(1, min(limit, FIELD_OPTIONS_MAX_LIMIT))
+
+    cards = DigimonCard.objects.exclude(**{field: ""})
+
+    # Narrowing in SQL is safe for split fields too: any part containing
+    # `query` means the whole stored string contains it.
+    if query:
+        cards = cards.filter(**{f"{field}__icontains": query})
+
+    # order_by() clears Meta.ordering (card_number), which would otherwise
+    # be added to GROUP BY and stop the counts from aggregating.
+    grouped = (
+        cards.order_by()
+        .values_list(field)
+        .annotate(count=Count("id"))
+    )
+
+    splits = FIELD_OPTION_FIELDS[field]
+    needle = query.lower()
+    counts = Counter()
+
+    for raw, count in grouped:
+        parts = raw.split("/") if splits else [raw]
+
+        for part in parts:
+            value = part.strip()
+
+            if not value or value == "-":
+                continue
+
+            if needle and needle not in value.lower():
+                continue
+
+            counts[value] += count
+
+    ordered = sorted(
+        counts.items(),
+        key=lambda item: (
+            not item[0].lower().startswith(needle),
+            -item[1],
+            item[0].lower(),
+        ),
+    )
+
+    return JsonResponse({
+        "field": field,
+        "options": [
+            {"value": value, "count": count}
+            for value, count in ordered[:limit]
+        ],
+    })

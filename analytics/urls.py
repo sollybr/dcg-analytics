@@ -6,6 +6,7 @@ from .views import (
     cards_by_name,
     sync_cards_view,
     cards_by_type,
+    field_options,
     statistics_schema,
     statistics_distribution,
     statistics_association,
@@ -17,6 +18,7 @@ urlpatterns = [
     path("cards/", cards_by_name),
     path("sync-cards/", sync_cards_view),
     path("cards-by-type/", cards_by_type),
+    path("field-options/", field_options),
     path(
         "statistics/schema/",
         statistics_schema,

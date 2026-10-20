@@ -14,19 +14,10 @@ import {
     getAssociationReliabilityWarning,
 } from '../chartUtils';
 
-import AnalyticsChart from './AnalyticsChart';
+import { CardAutocomplete } from '../autocomplete/autocomplete';
+import { DEFAULT_FIELD_OPTIONS } from '../fieldOptions';
 
-// Used only until /api/statistics/schema/ resolves, or if that request
-// fails -- keeps the picker usable without a network round trip blocking
-// first render, and gives a safe fallback if the schema endpoint is down.
-const DEFAULT_FIELD_OPTIONS = [
-    'name',
-    'color',
-    'rarity',
-    'expansion',
-    'subtype',
-    'card_type',
-];
+import AnalyticsChart from './AnalyticsChart';
 
 // Fields the backend schema will report as "categorical" (any CharField)
 // but that aren't meaningful as a statistics dimension -- card_number is
@@ -49,7 +40,11 @@ const getFieldLabel = (field) => {
 };
 
 export default function AdvancedStatisticsView({ onClose }) {
-    const [fieldOptions, setFieldOptions] = useState(DEFAULT_FIELD_OPTIONS);
+    // DEFAULT_FIELD_OPTIONS is used only until /api/statistics/schema/
+    // resolves, or if that request fails.
+    const [fieldOptions, setFieldOptions] = useState([
+        ...DEFAULT_FIELD_OPTIONS,
+    ]);
     const [givenField, setGivenField] = useState('');
     const [targetField, setTargetField] = useState('');
     const [selectedValue, setSelectedValue] = useState('');
@@ -109,6 +104,12 @@ export default function AdvancedStatisticsView({ onClose }) {
             }
             : null;
 
+    // Autocomplete only knows the fields /api/field-options/ serves; any
+    // other schema-reported field falls back to the plain text input.
+    const givenSupportsAutocomplete = selectedPreset
+        ? DEFAULT_FIELD_OPTIONS.includes(selectedPreset.given)
+        : false;
+
     const swapFields = () => {
         setGivenField(targetField);
         setTargetField(givenField);
@@ -127,8 +128,14 @@ export default function AdvancedStatisticsView({ onClose }) {
         setError(null);
     };
 
-    const analyzeDistribution = async () => {
-        const value = selectedValue.trim();
+    // valueOverride lets the autocomplete run the analysis right after a
+    // pick, before the selectedValue state update has landed.
+    const analyzeDistribution = async (valueOverride) => {
+        const value = (
+            typeof valueOverride === 'string'
+                ? valueOverride
+                : selectedValue
+        ).trim();
 
         if (!selectedPreset || !value) {
             return;
@@ -329,7 +336,12 @@ export default function AdvancedStatisticsView({ onClose }) {
                             <select
                                 id="given-field-select"
                                 value={givenField}
-                                onChange={(event) => setGivenField(event.target.value)}
+                                onChange={(event) => {
+                                    setGivenField(event.target.value);
+                                    // The autocomplete remounts for a new
+                                    // field, so drop the old value too.
+                                    setSelectedValue('');
+                                }}
                             >
                                 <option value="">SELECT FIELD...</option>
                                 {fieldOptions.map((field) => (
@@ -392,39 +404,57 @@ export default function AdvancedStatisticsView({ onClose }) {
 
                             <div className="query-form">
                                 <div className="query-field">
-                                    <label htmlFor="statistics-value">
-                                        {getFieldLabel(selectedPreset.given)}
-                                    </label>
+                                    {givenSupportsAutocomplete ? (
+                                        <CardAutocomplete
+                                            context={selectedPreset.given}
+                                            label={getFieldLabel(selectedPreset.given)}
+                                            placeholder={`ENTER ${getFieldLabel(
+                                                selectedPreset.given
+                                            )}`}
+                                            initialValue={selectedValue}
+                                            onInputChange={setSelectedValue}
+                                            onSelect={(value) => {
+                                                setSelectedValue(value);
+                                                analyzeDistribution(value);
+                                            }}
+                                        />
+                                    ) : (
+                                        <>
+                                            <label htmlFor="statistics-value">
+                                                {getFieldLabel(selectedPreset.given)}
+                                            </label>
                                     
-                                    <input
-                                        id="statistics-value"
-                                        type="text"
-                                        value={
-                                            selectedValue
-                                        }
-                                        onChange={(
-                                            event
-                                        ) =>
-                                            setSelectedValue(
-                                                event.target
-                                                    .value
-                                            )
-                                        }
-                                        placeholder={`ENTER ${getFieldLabel(
-                                            selectedPreset.given
-                                        )}`}
-                                        autoComplete="off"
-                                        onKeyDown={(
-                                            event
-                                        ) => {
-                                            if (
-                                                event.key ===
-                                                'Enter'
-                                            ) {
-                                                analyzeDistribution();
-                                            }
-                                        }}
-                                    />
+                                            <input
+                                                id="statistics-value"
+                                                type="text"
+                                                value={
+                                                    selectedValue
+                                                }
+                                                onChange={(
+                                                    event
+                                                ) =>
+                                                    setSelectedValue(
+                                                        event.target
+                                                            .value
+                                                    )
+                                                }
+                                                placeholder={`ENTER ${getFieldLabel(
+                                                    selectedPreset.given
+                                                )}`}
+                                                autoComplete="off"
+                                                onKeyDown={(
+                                                    event
+                                                ) => {
+                                                    if (
+                                                        event.key ===
+                                                        'Enter'
+                                                    ) {
+                                                        analyzeDistribution();
+                                                    }
+                                                }}
+                                            />
+                                        </>
+                                    )}
                                 </div>
 
                                 <div className="query-target">
@@ -442,9 +472,7 @@ export default function AdvancedStatisticsView({ onClose }) {
                                 <button
                                     type="button"
                                     className="digi-menu-button"
-                                    onClick={
-                                        analyzeDistribution
-                                    }
+                                    onClick={() => analyzeDistribution()}
                                     disabled={
                                         loading ||
                                         !selectedValue.trim()

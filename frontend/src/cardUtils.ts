@@ -7,6 +7,10 @@ export interface DigimonCard {
   color?: string | string[];
   colors?: string | string[];
   booster?: string;
+  expansion_name?: string;
+  expansionName?: string;
+  expansion?: string;
+  subtypes?: string | string[];
   setId?: string;
   set?: string;
   setNumber?: string;

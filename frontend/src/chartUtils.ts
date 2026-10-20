@@ -18,10 +18,20 @@ export const DISTINCT_COLORS_15 = [
     '#40E0D0',
 ];
 
+type ColorStrategy =
+    | string
+    | string[]
+    | ((labels: string[]) => string[]);
+
+interface ExpansionGroup {
+    labels: string[];
+    data: number[];
+}
+
 export const createInteractiveDatasets = (
-    labels = [],
-    dataArray = [],
-    colorStrategy
+    labels: string[] = [],
+    dataArray: number[] = [],
+    colorStrategy?: ColorStrategy
 ) => {
     if (!Array.isArray(labels)) {
         return [];
@@ -54,9 +64,9 @@ export const createInteractiveDatasets = (
 };
 
 export const createExpansionTypeDatasets = (
-    labels = [],
-    dataArray = [],
-    expansionTypes = []
+    labels: string[] = [],
+    dataArray: number[] = [],
+    expansionTypes: string[] = []
 ) => {
     if (
         !Array.isArray(labels) ||
@@ -66,7 +76,7 @@ export const createExpansionTypeDatasets = (
         return [];
     }
 
-    const grouped = {};
+    const grouped: Record<string, ExpansionGroup> = {};
 
     labels.forEach((label, index) => {
         const type =

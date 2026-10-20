@@ -1,0 +1,54 @@
+/*
+ * The ComboBox wrapper takes no box of its own, so the <label> and <input>
+ * stay direct children of their parent (e.g. .query-field) and keep the
+ * styling the old plain input had. Only the dropdown is styled here.
+ *
+ * The popover renders in a portal on <body>, so it can't inherit from
+ * .digi-dashboard -- override the --fa-* variables to retheme it.
+ */
+.field-autocomplete {
+    display: contents;
+}
+
+.field-autocomplete-popover {
+    box-sizing: border-box;
+    width: var(--trigger-width);
+    min-width: 160px;
+    overflow-y: auto;
+    background: var(--fa-bg, #0b1220);
+    border: 1px solid var(--fa-border, #00f3ff);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    font-family: 'Pixel Digivolve', monospace;
+}
+
+.field-autocomplete-list {
+    outline: none;
+    padding: 4px 0;
+}
+
+.field-autocomplete-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    color: var(--fa-text, #00f3ff);
+    cursor: pointer;
+    outline: none;
+}
+
+.field-autocomplete-item[data-hovered],
+.field-autocomplete-item[data-focused] {
+    background: var(--fa-hover, #1e293b);
+}
+
+.field-autocomplete-count {
+    opacity: 0.55;
+    font-size: 0.85em;
+}
+
+.field-autocomplete-empty {
+    padding: 8px 12px;
+    color: var(--fa-text, #00f3ff);
+    opacity: 0.6;
+}

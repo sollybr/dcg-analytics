@@ -184,7 +184,7 @@ function FieldAutocomplete({
             <Input placeholder={placeholder} autoComplete="off" />
 
             <Popover className="field-autocomplete-popover">
-                <ListBox
+                <ListBox<Suggestion>
                     className="field-autocomplete-list"
                     renderEmptyState={() => (
                         <div className="field-autocomplete-empty">

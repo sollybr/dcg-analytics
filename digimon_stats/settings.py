@@ -6,10 +6,18 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 CRON_SECRET = os.getenv("CRON_SECRET", "default-dev-token")
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-digimon-stats-key-12345')
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['.vercel.app', '127.0.0.1', 'localhost']
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('1', 'true', 'yes')
+SECRET_KEY = os.environ['SECRET_KEY'] if not DEBUG else os.environ.get('SECRET_KEY', 'dev-only-key')
+
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if o]
+CORS_ALLOWED_ORIGINS = [o for o in os.environ.get(
+    'CORS_ALLOWED_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173'
+).split(',') if o]
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -25,6 +33,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -33,6 +42,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
+
 if os.environ.get('DATABASE_URL'):
     import dj_database_url
 
@@ -40,8 +54,10 @@ if os.environ.get('DATABASE_URL'):
         'default': dj_database_url.parse(
             os.environ['DATABASE_URL'],
             conn_max_age=0,
+            conn_health_checks=True,
         )
     }
+    DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
 else:
     DATABASES = {
         'default': {

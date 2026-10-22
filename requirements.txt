@@ -6,12 +6,8 @@ asgiref==3.12.1
     #   django
     #   django-cors-headers
 boto3==1.43.116
-    # via card-analyzer-dcg
 botocore==1.43.116
-    # via
-    #   boto3
-    #   s3transfer
-certifi==2026.7.22
+certifi==2026.10.19
     # via
     #   card-analyzer-dcg
     #   requests

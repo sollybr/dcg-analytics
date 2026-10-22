@@ -4,6 +4,7 @@ updates:
     directory: "/frontend"
     schedule:
       interval: "weekly"
+    target-branch: "develop"
     groups:
       vulnerabilities:
         applies-to: "security-updates"

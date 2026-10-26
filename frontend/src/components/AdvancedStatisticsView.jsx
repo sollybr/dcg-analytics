@@ -39,9 +39,7 @@ const getFieldLabel = (field) => {
     return FIELD_LABELS[field] || field.toUpperCase();
 };
 
-export default function AdvancedStatisticsView({ onClose }) {
-    // DEFAULT_FIELD_OPTIONS is used only until /api/statistics/schema/
-    // resolves, or if that request fails.
+export default function AdvancedStatisticsView() {
     const [fieldOptions, setFieldOptions] = useState([
         ...DEFAULT_FIELD_OPTIONS,
     ]);
@@ -302,488 +300,478 @@ export default function AdvancedStatisticsView({ onClose }) {
     };
 
     return (
-        <div className="digi-dashboard">
-            <section className="advanced-statistics">
+        <section className="advanced-statistics">
 
-                <div className="advanced-statistics-header">
+            <div className="advanced-statistics-header">
+                <div>
+                    <span className="statistics-eyebrow">DIGITAL WORLD DATABASE</span>
+                    <h1>ADVANCED STATISTICS</h1>
+                    <p>Explore conditional distributions across the card database.</p>
+                </div>
+            </div>
+
+            <section className="advanced-statistics-menu">
+                <div className="statistics-section-header">
                     <div>
-                        <span className="statistics-eyebrow">DIGITAL WORLD DATABASE</span>
-                        <h1>ADVANCED STATISTICS</h1>
-                        <p>Explore conditional distributions across the card database.</p>
+                        <span>ANALYSIS MODULE</span>
+                        <h2>BUILD ANALYSIS</h2>
+                    </div>
+                    <span>{fieldOptions.length} FIELDS</span>
+                </div>
+
+                <div className="distribution-pair-builder">
+                    <div className="pair-field">
+                        <label htmlFor="given-field-select">GIVEN</label>
+                        <select
+                            id="given-field-select"
+                            value={givenField}
+                            onChange={(event) => {
+                                setGivenField(event.target.value);
+                                // The autocomplete remounts for a new
+                                // field, so drop the old value too.
+                                setSelectedValue('');
+                            }}
+                        >
+                            <option value="">SELECT FIELD...</option>
+                            {fieldOptions.map((field) => (
+                                <option key={field} value={field} disabled={field === targetField}>
+                                    {getFieldLabel(field)}
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
                     <button
                         type="button"
-                        className="digi-menu-button"
-                        onClick={onClose}
+                        className="pair-swap-button"
+                        onClick={swapFields}
+                        disabled={!givenField || !targetField}
+                        title="Swap given and target"
                     >
-                        BACK TO HOME
+                        ⇄
                     </button>
-                </div>
 
-                <section className="advanced-statistics-menu">
-                    <div className="statistics-section-header">
-                        <div>
-                            <span>ANALYSIS MODULE</span>
-                            <h2>BUILD ANALYSIS</h2>
-                        </div>
-                        <span>{fieldOptions.length} FIELDS</span>
-                    </div>
-
-                    <div className="distribution-pair-builder">
-                        <div className="pair-field">
-                            <label htmlFor="given-field-select">GIVEN</label>
-                            <select
-                                id="given-field-select"
-                                value={givenField}
-                                onChange={(event) => {
-                                    setGivenField(event.target.value);
-                                    // The autocomplete remounts for a new
-                                    // field, so drop the old value too.
-                                    setSelectedValue('');
-                                }}
-                            >
-                                <option value="">SELECT FIELD...</option>
-                                {fieldOptions.map((field) => (
-                                    <option key={field} value={field} disabled={field === targetField}>
-                                        {getFieldLabel(field)}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <button
-                            type="button"
-                            className="pair-swap-button"
-                            onClick={swapFields}
-                            disabled={!givenField || !targetField}
-                            title="Swap given and target"
+                    <div className="pair-field">
+                        <label htmlFor="target-field-select">TARGET</label>
+                        <select
+                            id="target-field-select"
+                            value={targetField}
+                            onChange={(event) => setTargetField(event.target.value)}
                         >
-                            ⇄
-                        </button>
-
-                        <div className="pair-field">
-                            <label htmlFor="target-field-select">TARGET</label>
-                            <select
-                                id="target-field-select"
-                                value={targetField}
-                                onChange={(event) => setTargetField(event.target.value)}
-                            >
-                                <option value="">SELECT FIELD...</option>
-                                {fieldOptions.map((field) => (
-                                    <option key={field} value={field} disabled={field === givenField}>
-                                        {getFieldLabel(field)}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                            <option value="">SELECT FIELD...</option>
+                            {fieldOptions.map((field) => (
+                                <option key={field} value={field} disabled={field === givenField}>
+                                    {getFieldLabel(field)}
+                                </option>
+                            ))}
+                        </select>
                     </div>
-                </section>
+                </div>
+            </section>
 
-                {selectedPreset && (
-                    <>
-                        <section className="advanced-statistics-query">
-                            <div className="query-header">
-                                <div>
-                                    <span>SELECTED ANALYSIS</span>
-                                    <h2>{selectedPreset.label}</h2>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    className="statistics-reset-button"
-                                    onClick={resetAnalysis}
-                                >
-                                    RESET ANALYSIS
-                                </button>
+            {selectedPreset && (
+                <>
+                    <section className="advanced-statistics-query">
+                        <div className="query-header">
+                            <div>
+                                <span>SELECTED ANALYSIS</span>
+                                <h2>{selectedPreset.label}</h2>
                             </div>
 
-                            <p className="query-description">
-                                {selectedPreset.description}
-                            </p>
+                            <button
+                                type="button"
+                                className="statistics-reset-button"
+                                onClick={resetAnalysis}
+                            >
+                                RESET ANALYSIS
+                            </button>
+                        </div>
 
-                            <div className="query-form">
-                                <div className="query-field">
-                                    {givenSupportsAutocomplete ? (
-                                        <CardAutocomplete
-                                            context={selectedPreset.given}
-                                            label={getFieldLabel(selectedPreset.given)}
+                        <p className="query-description">
+                            {selectedPreset.description}
+                        </p>
+
+                        <div className="query-form">
+                            <div className="query-field">
+                                {givenSupportsAutocomplete ? (
+                                    <CardAutocomplete
+                                        context={selectedPreset.given}
+                                        label={getFieldLabel(selectedPreset.given)}
+                                        placeholder={`ENTER ${getFieldLabel(
+                                            selectedPreset.given
+                                        )}`}
+                                        initialValue={selectedValue}
+                                        onInputChange={setSelectedValue}
+                                        onSelect={(value) => {
+                                            setSelectedValue(value);
+                                            analyzeDistribution(value);
+                                        }}
+                                    />
+                                ) : (
+                                    <>
+                                        <label htmlFor="statistics-value">
+                                            {getFieldLabel(selectedPreset.given)}
+                                        </label>
+                                
+                                        <input
+                                            id="statistics-value"
+                                            type="text"
+                                            value={
+                                                selectedValue
+                                            }
+                                            onChange={(
+                                                event
+                                            ) =>
+                                                setSelectedValue(
+                                                    event.target
+                                                        .value
+                                                )
+                                            }
                                             placeholder={`ENTER ${getFieldLabel(
                                                 selectedPreset.given
                                             )}`}
-                                            initialValue={selectedValue}
-                                            onInputChange={setSelectedValue}
-                                            onSelect={(value) => {
-                                                setSelectedValue(value);
-                                                analyzeDistribution(value);
+                                            autoComplete="off"
+                                            onKeyDown={(
+                                                event
+                                            ) => {
+                                                if (
+                                                    event.key ===
+                                                    'Enter'
+                                                ) {
+                                                    analyzeDistribution();
+                                                }
                                             }}
                                         />
-                                    ) : (
-                                        <>
-                                            <label htmlFor="statistics-value">
-                                                {getFieldLabel(selectedPreset.given)}
-                                            </label>
-                                    
-                                            <input
-                                                id="statistics-value"
-                                                type="text"
-                                                value={
-                                                    selectedValue
-                                                }
-                                                onChange={(
-                                                    event
-                                                ) =>
-                                                    setSelectedValue(
-                                                        event.target
-                                                            .value
-                                                    )
-                                                }
-                                                placeholder={`ENTER ${getFieldLabel(
-                                                    selectedPreset.given
-                                                )}`}
-                                                autoComplete="off"
-                                                onKeyDown={(
-                                                    event
-                                                ) => {
-                                                    if (
-                                                        event.key ===
-                                                        'Enter'
-                                                    ) {
-                                                        analyzeDistribution();
-                                                    }
-                                                }}
-                                            />
-                                        </>
-                                    )}
-                                </div>
-
-                                <div className="query-target">
-                                    <span>
-                                        TARGET
-                                    </span>
-
-                                    <strong>
-                                        {getFieldLabel(
-                                            selectedPreset.target
-                                        )}
-                                    </strong>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    className="digi-menu-button"
-                                    onClick={() => analyzeDistribution()}
-                                    disabled={
-                                        loading ||
-                                        !selectedValue.trim()
-                                    }
-                                >
-                                    {loading
-                                        ? 'ANALYZING...'
-                                        : 'RUN ANALYSIS'}
-                                </button>
+                                    </>
+                                )}
                             </div>
-                        </section>
 
-                        {error && (
-                            <section className="advanced-statistics-error">
+                            <div className="query-target">
                                 <span>
-                                    ANALYSIS FAILURE
+                                    TARGET
                                 </span>
 
-                                <h2>
-                                    DATABASE QUERY FAILED
-                                </h2>
+                                <strong>
+                                    {getFieldLabel(
+                                        selectedPreset.target
+                                    )}
+                                </strong>
+                            </div>
 
-                                <p>{error}</p>
-                            </section>
-                        )}
+                            <button
+                                type="button"
+                                className="digi-menu-button"
+                                onClick={() => analyzeDistribution()}
+                                disabled={
+                                    loading ||
+                                    !selectedValue.trim()
+                                }
+                            >
+                                {loading
+                                    ? 'ANALYZING...'
+                                    : 'RUN ANALYSIS'}
+                            </button>
+                        </div>
+                    </section>
 
-                        {loading && (
-                            <section className="advanced-statistics-loading">
-                                <div className="digi-spinner"></div>
+                    {error && (
+                        <section className="advanced-statistics-error">
+                            <span>
+                                ANALYSIS FAILURE
+                            </span>
 
-                                <p>
-                                    CALCULATING
-                                    DISTRIBUTION...
-                                </p>
-                            </section>
-                        )}
+                            <h2>
+                                DATABASE QUERY FAILED
+                            </h2>
 
-                        {distribution &&
-                            !loading && (
-                                <>
-                                    {distributionItems.length ===
-                                    0 ? (
-                                        <section className="advanced-statistics-empty">
-                                            <span>
-                                                NO OBSERVATIONS
-                                            </span>
+                            <p>{error}</p>
+                        </section>
+                    )}
 
-                                            <h2>
-                                                NO DATA FOUND
-                                            </h2>
+                    {loading && (
+                        <section className="advanced-statistics-loading">
+                            <div className="digi-spinner"></div>
 
-                                            <p>
-                                                No records matched
+                            <p>
+                                CALCULATING
+                                DISTRIBUTION...
+                            </p>
+                        </section>
+                    )}
+
+                    {distribution &&
+                        !loading && (
+                            <>
+                                {distributionItems.length ===
+                                0 ? (
+                                    <section className="advanced-statistics-empty">
+                                        <span>
+                                            NO OBSERVATIONS
+                                        </span>
+
+                                        <h2>
+                                            NO DATA FOUND
+                                        </h2>
+
+                                        <p>
+                                            No records matched
+                                            <strong>
+                                                {' '}
+                                                "
+                                                {
+                                                    distribution
+                                                        .given
+                                                        .value
+                                                }
+                                                "
+                                            </strong>
+                                            .
+                                        </p>
+                                    </section>
+                                ) : (
+                                    <>
+                                        <section className="statistics-summary">
+                                            <div className="statistics-metric">
+                                                <span>
+                                                    OBSERVATIONS
+                                                </span>
+
                                                 <strong>
-                                                    {' '}
-                                                    "
                                                     {
-                                                        distribution
-                                                            .given
-                                                            .value
+                                                        totalObservations
                                                     }
-                                                    "
                                                 </strong>
-                                                .
-                                            </p>
-                                        </section>
-                                    ) : (
-                                        <>
-                                            <section className="statistics-summary">
-                                                <div className="statistics-metric">
-                                                    <span>
-                                                        OBSERVATIONS
-                                                    </span>
+                                            </div>
 
-                                                    <strong>
-                                                        {
-                                                            totalObservations
-                                                        }
-                                                    </strong>
-                                                </div>
+                                            <div className="statistics-metric">
+                                                <span>
+                                                    CATEGORIES
+                                                </span>
 
-                                                <div className="statistics-metric">
-                                                    <span>
-                                                        CATEGORIES
-                                                    </span>
+                                                <strong>
+                                                    {
+                                                        distributionItems.length
+                                                    }
+                                                </strong>
+                                            </div>
 
-                                                    <strong>
-                                                        {
-                                                            distributionItems.length
-                                                        }
-                                                    </strong>
-                                                </div>
+                                            <div className="statistics-metric">
+                                                <span>
+                                                    DOMINANT
+                                                </span>
 
-                                                <div className="statistics-metric">
-                                                    <span>
-                                                        DOMINANT
-                                                    </span>
+                                                <strong>
+                                                    {
+                                                        dominantItem
+                                                            ?.value
+                                                    }
+                                                </strong>
+                                            </div>
 
-                                                    <strong>
-                                                        {
+                                            <div className="statistics-metric">
+                                                <span>
+                                                    DOMINANT SHARE
+                                                </span>
+
+                                                <strong>
+                                                    {(
+                                                        Number(
                                                             dominantItem
-                                                                ?.value
-                                                        }
-                                                    </strong>
-                                                </div>
+                                                                ?.percentage ||
+                                                                0
+                                                        ) *
+                                                        100
+                                                    ).toFixed(
+                                                        2
+                                                    )}
+                                                    %
+                                                </strong>
+                                            </div>
 
+                                            {dominantItem?.lift != null && (
                                                 <div className="statistics-metric">
                                                     <span>
-                                                        DOMINANT SHARE
+                                                        VS. BASELINE
                                                     </span>
 
-                                                    <strong>
-                                                        {(
-                                                            Number(
-                                                                dominantItem
-                                                                    ?.percentage ||
-                                                                    0
-                                                            ) *
-                                                            100
-                                                        ).toFixed(
-                                                            2
-                                                        )}
-                                                        %
+                                                    <strong
+                                                        className={
+                                                            dominantItem.lift >= 1.3
+                                                                ? 'lift-up'
+                                                                : dominantItem.lift <= 0.7
+                                                                    ? 'lift-down'
+                                                                    : ''
+                                                        }
+                                                    >
+                                                        {dominantItem.lift.toFixed(2)}x
                                                     </strong>
                                                 </div>
+                                            )}
+                                        </section>
 
-                                                {dominantItem?.lift != null && (
-                                                    <div className="statistics-metric">
-                                                        <span>
-                                                            VS. BASELINE
-                                                        </span>
+                                        {association && (
+                                            <section
+                                                className={`statistics-association ${
+                                                    association.reliable === false
+                                                        ? 'unreliable'
+                                                        : 'reliable'
+                                                }`}
+                                            >
+                                                <div className="statistics-association-header">
+                                                    <span>
+                                                        FIELD-LEVEL ASSOCIATION
+                                                    </span>
 
-                                                        <strong
-                                                            className={
-                                                                dominantItem.lift >= 1.3
-                                                                    ? 'lift-up'
-                                                                    : dominantItem.lift <= 0.7
-                                                                        ? 'lift-down'
-                                                                        : ''
-                                                            }
-                                                        >
-                                                            {dominantItem.lift.toFixed(2)}x
-                                                        </strong>
-                                                    </div>
+                                                    <h3>
+                                                        {getFieldLabel(selectedPreset.given)}
+                                                        {' × '}
+                                                        {getFieldLabel(selectedPreset.target)}
+                                                    </h3>
+                                                </div>
+
+                                                <p className="statistics-association-body">
+                                                    Cramér's V across the
+                                                    {' '}
+                                                    <strong>{association.sample_size ?? '—'}</strong>
+                                                    {' '}
+                                                    value pairs in the full dataset:
+                                                    {' '}
+                                                    <strong>
+                                                        {Number(association.cramers_v).toFixed(3)}
+                                                    </strong>
+                                                    {' '}
+                                                    (0 = no relationship, 1 = perfect).
+                                                </p>
+
+                                                {associationWarning && (
+                                                    <p className="statistics-association-warning">
+                                                        {associationWarning}
+                                                    </p>
                                                 )}
                                             </section>
+                                        )}
 
-                                            {association && (
-                                                <section
-                                                    className={`statistics-association ${
-                                                        association.reliable === false
-                                                            ? 'unreliable'
-                                                            : 'reliable'
-                                                    }`}
-                                                >
-                                                    <div className="statistics-association-header">
-                                                        <span>
-                                                            FIELD-LEVEL ASSOCIATION
-                                                        </span>
+                                        <section className="advanced-statistics-result">
+                                            <AnalyticsChart
+                                                title={`${getFieldLabel(
+                                                    selectedPreset.target
+                                                )} DISTRIBUTION — ${
+                                                    distribution
+                                                        .given
+                                                        .value
+                                                }`}
+                                            >
+                                                <Bar
+                                                    data={
+                                                        chartData
+                                                    }
+                                                    options={
+                                                        chartOptions
+                                                    }
+                                                />
+                                            </AnalyticsChart>
 
-                                                        <h3>
-                                                            {getFieldLabel(selectedPreset.given)}
-                                                            {' × '}
-                                                            {getFieldLabel(selectedPreset.target)}
-                                                        </h3>
-                                                    </div>
+                                            <div className="distribution-results">
+                                                <div className="distribution-results-header">
+                                                    <span>
+                                                        VALUE
+                                                    </span>
 
-                                                    <p className="statistics-association-body">
-                                                        Cramér's V across the
-                                                        {' '}
-                                                        <strong>{association.sample_size ?? '—'}</strong>
-                                                        {' '}
-                                                        value pairs in the full dataset:
-                                                        {' '}
-                                                        <strong>
-                                                            {Number(association.cramers_v).toFixed(3)}
-                                                        </strong>
-                                                        {' '}
-                                                        (0 = no relationship, 1 = perfect).
-                                                    </p>
+                                                    <span>
+                                                        COUNT
+                                                    </span>
 
-                                                    {associationWarning && (
-                                                        <p className="statistics-association-warning">
-                                                            {associationWarning}
-                                                        </p>
-                                                    )}
-                                                </section>
-                                            )}
+                                                    <span>
+                                                        SHARE
+                                                    </span>
+                                                </div>
 
-                                            <section className="advanced-statistics-result">
-                                                <AnalyticsChart
-                                                    title={`${getFieldLabel(
-                                                        selectedPreset.target
-                                                    )} DISTRIBUTION — ${
-                                                        distribution
-                                                            .given
-                                                            .value
-                                                    }`}
-                                                >
-                                                    <Bar
-                                                        data={
-                                                            chartData
-                                                        }
-                                                        options={
-                                                            chartOptions
-                                                        }
-                                                    />
-                                                </AnalyticsChart>
+                                                {distributionItems.map(
+                                                    (
+                                                        item,
+                                                        index
+                                                    ) => {
+                                                        const percentage =
+                                                            Number(
+                                                                item.percentage
+                                                            ) *
+                                                            100;
 
-                                                <div className="distribution-results">
-                                                    <div className="distribution-results-header">
-                                                        <span>
-                                                            VALUE
-                                                        </span>
-
-                                                        <span>
-                                                            COUNT
-                                                        </span>
-
-                                                        <span>
-                                                            SHARE
-                                                        </span>
-                                                    </div>
-
-                                                    {distributionItems.map(
-                                                        (
-                                                            item,
-                                                            index
-                                                        ) => {
-                                                            const percentage =
-                                                                Number(
-                                                                    item.percentage
-                                                                ) *
-                                                                100;
-
-                                                            return (
-                                                                <div
-                                                                    className="distribution-result"
-                                                                    key={
-                                                                        item.value
-                                                                    }
-                                                                >
-                                                                    <div className="distribution-value">
-                                                                        <span className="distribution-rank">
-                                                                            {String(
-                                                                                index +
-                                                                                    1
-                                                                            ).padStart(
-                                                                                2,
-                                                                                '0'
-                                                                            )}
-                                                                        </span>
-
-                                                                        <strong>
-                                                                            {
-                                                                                item.value
-                                                                            }
-                                                                        </strong>
-
-                                                                        {notableValues.has(item.value) && (
-                                                                            <span
-                                                                                className={
-                                                                                    item.lift >= 1
-                                                                                        ? 'distribution-lift-badge lift-up'
-                                                                                        : 'distribution-lift-badge lift-down'
-                                                                                }
-                                                                                title="Meaningfully different from the full-dataset baseline"
-                                                                            >
-                                                                                {item.lift >= 1 ? '▲' : '▼'}
-                                                                                {' '}
-                                                                                {item.lift.toFixed(1)}x
-                                                                            </span>
+                                                        return (
+                                                            <div
+                                                                className="distribution-result"
+                                                                key={
+                                                                    item.value
+                                                                }
+                                                            >
+                                                                <div className="distribution-value">
+                                                                    <span className="distribution-rank">
+                                                                        {String(
+                                                                            index +
+                                                                                1
+                                                                        ).padStart(
+                                                                            2,
+                                                                            '0'
                                                                         )}
+                                                                    </span>
+
+                                                                    <strong>
+                                                                        {
+                                                                            item.value
+                                                                        }
+                                                                    </strong>
+
+                                                                    {notableValues.has(item.value) && (
+                                                                        <span
+                                                                            className={
+                                                                                item.lift >= 1
+                                                                                    ? 'distribution-lift-badge lift-up'
+                                                                                    : 'distribution-lift-badge lift-down'
+                                                                            }
+                                                                            title="Meaningfully different from the full-dataset baseline"
+                                                                        >
+                                                                            {item.lift >= 1 ? '▲' : '▼'}
+                                                                            {' '}
+                                                                            {item.lift.toFixed(1)}x
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+
+                                                                <span>
+                                                                    {
+                                                                        item.count
+                                                                    }
+                                                                </span>
+
+                                                                <div className="distribution-percentage">
+                                                                    <div className="distribution-bar">
+                                                                        <div
+                                                                            className="distribution-bar-fill"
+                                                                            style={{
+                                                                                width: `${percentage}%`,
+                                                                            }}
+                                                                        />
                                                                     </div>
 
                                                                     <span>
-                                                                        {
-                                                                            item.count
-                                                                        }
+                                                                        {percentage.toFixed(
+                                                                            2
+                                                                        )}
+                                                                        %
                                                                     </span>
-
-                                                                    <div className="distribution-percentage">
-                                                                        <div className="distribution-bar">
-                                                                            <div
-                                                                                className="distribution-bar-fill"
-                                                                                style={{
-                                                                                    width: `${percentage}%`,
-                                                                                }}
-                                                                            />
-                                                                        </div>
-
-                                                                        <span>
-                                                                            {percentage.toFixed(
-                                                                                2
-                                                                            )}
-                                                                            %
-                                                                        </span>
-                                                                    </div>
                                                                 </div>
-                                                            );
-                                                        }
-                                                    )}
-                                                </div>
-                                            </section>
-                                        </>
-                                    )}
-                                </>
-                            )}
-                    </>
-                )}
-            </section>
-        </div>
+                                                            </div>
+                                                        );
+                                                    }
+                                                )}
+                                            </div>
+                                        </section>
+                                    </>
+                                )}
+                            </>
+                        )}
+                </>
+            )}
+        </section>
     );
 }

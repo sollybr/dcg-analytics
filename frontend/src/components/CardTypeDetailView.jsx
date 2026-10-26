@@ -5,52 +5,19 @@ export default function CardTypeDetailView({
     typeCards,
     cardsLoading,
     cardsError,
-    totalCards,
     hasMoreType,
     observerTarget,
-    onClose,
 }) {
     return (
-        <div className="digi-dashboard">
-            <header className="digi-header">
-                <h1>DIGIMON ANALYTICS OS</h1>
+        <main className="digi-detail-view digi-card-type-detail-view">
+            <div className="digi-detail-header">
 
-                <div className="digi-status">
-                    <span className="indicator"></span>
-                    <span>SYSTEM ONLINE</span>
-                    <span style={{ opacity: 0.4 }}>|</span>
-                    <span>
-                        CARDS INDEXED: {totalCards || 0}
+                <h2>
+                    CARDS OF TYPE:{' '}
+                    <span style={{ color: '#00f3ff' }}>
+                        {selectedType}
                     </span>
-                </div>
-            </header>
-
-            <main className="digi-detail-view">
-                <div className="digi-detail-header">
-                    <button
-                        className="digi-back-btn"
-                        onClick={onClose}
-                    >
-                        &larr; BACK TO DASHBOARD
-                    </button>
-
-                    <h2>
-                        CARDS OF TYPE:{' '}
-                        <span style={{ color: '#00f3ff' }}>
-                            {selectedType}
-                        </span>
-                    </h2>
-
-                    {cardsLoading && typeCards.length === 0 && (
-                        <div className="digi-loader">
-                            <div className="digi-spinner"></div>
-
-                            <p className="digi-loading-text">
-                                LOADING CARD DATA...
-                            </p>
-                        </div>
-                    )}
-                </div>
+                </h2>
 
                 {cardsLoading && typeCards.length === 0 && (
                     <div className="digi-loader">
@@ -61,61 +28,67 @@ export default function CardTypeDetailView({
                         </p>
                     </div>
                 )}
+            </div>
 
-                {cardsError && (
+            {cardsLoading && typeCards.length === 0 && (
+                <div className="digi-loader">
+                    <div className="digi-spinner"></div>
+
+                    <p className="digi-loading-text">
+                        LOADING CARD DATA...
+                    </p>
+                </div>
+            )}
+
+            {cardsError && (
+                <div className="digi-error-container">
+                    <h2>CARD DATABASE OFFLINE</h2>
+                    <p>{cardsError}</p>
+                </div>
+            )}
+
+            {!cardsLoading &&
+                !cardsError &&
+                typeCards.length === 0 && (
                     <div className="digi-error-container">
-                        <h2>CARD DATABASE OFFLINE</h2>
-                        <p>{cardsError}</p>
+                        <h2>NO CARDS FOUND</h2>
+                        <p>
+                            No cards were returned for this type.
+                        </p>
                     </div>
                 )}
 
-                {!cardsLoading &&
-                    !cardsError &&
-                    typeCards.length === 0 && (
-                        <div className="digi-error-container">
-                            <h2>NO CARDS FOUND</h2>
+            {!cardsError && typeCards.length > 0 && (
+                <div className="card-type-list-container">
+                    {typeCards.map((card, index) => (
+                        <CardDetailItem
+                            key={`${card.id}-${index}`}
+                            card={card}
+                            index={index}
+                            selectedCardName={card.name?.english}
+                        />
+                    ))}
+
+                    {hasMoreType && (
+                        <div
+                            ref={observerTarget}
+                            className="card-type-loading-indicator"
+                        >
                             <p>
-                                No cards were returned for this type.
+                                {cardsLoading
+                                    ? 'LOADING MORE...'
+                                    : 'SCANNING FOR MORE...'}
                             </p>
                         </div>
                     )}
 
-                {!cardsError && typeCards.length > 0 && (
-                    <div className="card-type-list-container">
-                        {typeCards.map((card, index) => (
-                            <CardDetailItem
-                                key={`${card.id}-${index}`}
-                                card={card}
-                                index={index}
-                                selectedCardName={card.name?.english}
-                            />
-                        ))}
-
-                        {hasMoreType && (
-                            <div
-                                ref={observerTarget}
-                                className="card-type-loading-indicator"
-                            >
-                                <p>
-                                    {cardsLoading
-                                        ? 'LOADING MORE...'
-                                        : 'SCANNING FOR MORE...'}
-                                </p>
-                            </div>
-                        )}
-
-                        {!hasMoreType && (
-                            <div className="card-type-end-of-results">
-                                <p>END OF DATALOG.</p>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </main>
-
-            <footer className="digi-footer">
-                {/* Footer is rendered by Dashboard. */}
-            </footer>
-        </div>
+                    {!hasMoreType && (
+                        <div className="card-type-end-of-results">
+                            <p>END OF DATALOG.</p>
+                        </div>
+                    )}
+                </div>
+            )}
+        </main>
     );
 }

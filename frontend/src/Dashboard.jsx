@@ -221,9 +221,15 @@ export default function Dashboard() {
 
   if (loading || !data) {
     return (
-      <div className="digi-loader">
-        <div className="digi-spinner"></div>
-
+      <div className="digi-loading-container">
+        <div className="digi-spinner-wrapper">
+          <div className="digi-spinner"></div>
+          <img
+            src="https://raw.githubusercontent.com/sollybr/sollybr/tenet/assets/gabumon.png"
+            alt="Loading Favicon"
+            className="digi-spinner-favicon"
+          />
+        </div>
         <p className="digi-loading-text">
           CONNECTING TO DIGITAL WORLD DATABASE...
         </p>
@@ -475,8 +481,15 @@ export default function Dashboard() {
 
       <Suspense
         fallback={
-          <div className="digi-loader">
-            <div className="digi-spinner"></div>
+          <div className="digi-loading-container">
+            <div className="digi-spinner-wrapper">
+              <div className="digi-spinner"></div>
+              <img
+                src="https://raw.githubusercontent.com/sollybr/sollybr/tenet/assets/gabumon.png"
+                alt="Loading Favicon"
+                className="digi-spinner-favicon"
+              />
+            </div>
             <p className="digi-loading-text">LOADING MODULE...</p>
           </div>
         }

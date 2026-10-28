@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -34,6 +34,7 @@ import { fetchAnalytics, fetchCardsByName, fetchCardsByType } from './api';
 const AnalyticsChart = lazy(() => import('./components/AnalyticsChart'));
 import DashboardHeader from './components/DashboardHeader';
 import DashboardFooter from './components/DashboardFooter';
+import DashboardDrawer, { useIsMobile } from './components/DashboardDrawer';
 const CardDetailView = lazy(() => import('./components/CardDetailView'));
 const CardTypeDetailView = lazy(() => import('./components/CardTypeDetailView'));
 const AdvancedStatisticsView = lazy(() => import('./components/AdvancedStatisticsView'));
@@ -76,6 +77,15 @@ export default function Dashboard() {
   const [hasMoreType, setHasMoreType] = useState(true);
   const [typeCardsLoading, setTypeCardsLoading] = useState(false);
   const observerTarget = useRef(null);
+
+  const isMobile = useIsMobile();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+
+  useEffect(() => {
+    if (!isMobile) setDrawerOpen(false);
+  }, [isMobile]);
 
   useEffect(() => {
     fetchAnalytics({ excludeExpansions: ['P', 'ST'], excludeTypes: ['Lesser'] })
@@ -211,12 +221,14 @@ export default function Dashboard() {
     closeCardName();
     closeCardType();
     setActiveScreen('home');
+    setDrawerOpen(false);
   };
 
   const goAdvanced = () => {
     closeCardName();
     closeCardType();
     setActiveScreen('advanced');
+    setDrawerOpen(false);
   };
 
   if (loading || !data) {
@@ -459,7 +471,26 @@ export default function Dashboard() {
 
   return (
     <div className="digi-dashboard">
-      <DashboardHeader totalCards={data.total_cards} />
+      <div className="digi-topbar">
+        <button
+          type="button"
+          className="digi-menu-toggle"
+          onClick={openDrawer}
+          aria-label="Open menu"
+          aria-expanded={drawerOpen}
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path
+              d="M3 6h18M3 12h18M3 18h18"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              fill="none"
+            />
+          </svg>
+        </button>
+        <DashboardHeader totalCards={data.total_cards} />
+      </div>
 
       <div className="digi-dashboard-menu">
         <button
@@ -498,6 +529,18 @@ export default function Dashboard() {
       </Suspense>
 
       <DashboardFooter />
+
+      <DashboardDrawer
+        open={drawerOpen}
+        enabled={isMobile}
+        onOpen={openDrawer}
+        onClose={closeDrawer}
+        activeId={activeScreen}
+        items={[
+          { id: 'home', label: 'HOME', onClick: goHome },
+          { id: 'advanced', label: 'MORE DISTRIBUTIONS', onClick: goAdvanced },
+        ]}
+      />
     </div>
   );
 

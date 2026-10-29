@@ -20,6 +20,12 @@ def by_value(options):
 class ExpansionFieldOptionsTests(TestCase):
     @classmethod
     def setUpTestData(cls):
+        # Promos: one code, many names.
+        for name in ("Winter Promo 2023", "Tamer Party", "Digimon Card Game Tournament Pack"):
+            CardExpansion.objects.create(expansion_code="P", expansion_name=name)
+        for i in range(2):
+            make_card(f"P-{i:03}", expansion="P")
+        
         CardExpansion.objects.create(expansion_code="BT07", expansion_name="New Awakening")
         CardExpansion.objects.create(expansion_code="BT08", expansion_name="Ultimate Power")
         CardExpansion.objects.create(expansion_code="BT09", expansion_name="Renewed Hope")
@@ -43,6 +49,21 @@ class ExpansionFieldOptionsTests(TestCase):
         make_card("X-001", expansion="")
         make_card("X-002", expansion="-")
 
+    def test_promo_label_is_fixed_not_a_list_of_names(self):
+        options = by_value(get_field_options("expansion", ""))
+        self.assertEqual(options["P"]["label"], "Promos")
+
+    def test_promo_found_by_any_of_its_names(self):
+        for query in ("winter", "tamer", "tournament"):
+            with self.subTest(query=query):
+                options = get_field_options("expansion", query)
+                self.assertEqual([o["value"] for o in options], ["P"])
+                self.assertEqual(options[0]["label"], "Promos")
+
+    def test_promo_found_by_its_label(self):
+        options = get_field_options("expansion", "promos")
+        self.assertEqual([o["value"] for o in options], ["P"])
+        
     def test_code_substring_still_matches(self):
         options = by_value(get_field_options("expansion", "bt0"))
         self.assertEqual(set(options), {"BT07", "BT08", "BT09"})
@@ -139,3 +160,8 @@ class OtherFieldOptionsTests(TestCase):
     def test_split_field_substring_match(self):
         options = by_value(get_field_options("subtype", "vac"))
         self.assertEqual(set(options), {"Vaccine"})
+        
+    def test_override_does_not_leak_into_other_fields(self):
+        make_card("BT07-004", expansion="BT07", rarity="P")
+        options = by_value(get_field_options("rarity", "p"))
+        self.assertEqual(options["P"]["label"], "P")        

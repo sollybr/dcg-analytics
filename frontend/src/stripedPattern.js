@@ -3,15 +3,18 @@ const cache = new Map();
 /**
  * Seamless 45° stripe pattern with one equal-width stripe per color.
  * One color returns a plain solid color.
+ * Dynamically scales stripe widths to fit a target bar width (default 120px),
+ * ensuring exactly n stripes are evenly distributed across the bar.
  */
-export function createDiagonalPattern(colors, stripe = 10) {
+export function createDiagonalPattern(colors, targetWidth = 120) {
   if (colors.length === 1) return colors[0];
 
-  const key = `${stripe}|${colors.join('|')}`;
+  const n = colors.length;
+  const stripe = targetWidth / n;
+  const key = `${targetWidth}|${colors.join('|')}`;
   if (cache.has(key)) return cache.get(key);
 
-  const n = colors.length;
-  const T = stripe * n;
+  const T = targetWidth;
   const tile = document.createElement('canvas');
   tile.width = T;
   tile.height = T;

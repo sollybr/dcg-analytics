@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -30,6 +30,7 @@ import {
 } from './chartUtils';
 
 import { fetchAnalytics, fetchCardsByName, fetchCardsByType } from './api';
+import { createDiagonalPattern } from './stripedPattern';
 
 const AnalyticsChart = lazy(() => import('./components/AnalyticsChart'));
 import DashboardHeader from './components/DashboardHeader';
@@ -56,6 +57,8 @@ ChartJS.register(
 ChartJS.defaults.color = '#7dd3fc';
 ChartJS.defaults.font.family =
   "'Pixel Digivolve', monospace";
+
+const ANALYTICS_EXCLUSIONS = { excludeExpansions: ['P', 'ST'], excludeTypes: ['Lesser'] };
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
@@ -88,16 +91,10 @@ export default function Dashboard() {
   }, [isMobile]);
 
   useEffect(() => {
-    fetchAnalytics({ excludeExpansions: ['P', 'ST'], excludeTypes: ['Lesser'] })
-      .then((result) => {
-        setData(result);
-        setLoading(false);
-      })
+    fetchAnalytics(ANALYTICS_EXCLUSIONS)
+      .then((result) => { setData(result); setLoading(false); })
       .catch((error) => {
-        console.error(
-          'Error fetching analytics:',
-          error
-        );
+        console.error('Error fetching analytics:', error);
         setLoading(false);
       });
   }, []);
@@ -231,6 +228,23 @@ export default function Dashboard() {
     setDrawerOpen(false);
   };
 
+  const nameChartData = useMemo(() => {
+    const labels = data?.name_labels || [];
+    const datasets = createInteractiveDatasets(
+      labels,
+      data?.name_data,
+      DISTINCT_COLORS_15
+    ).map((ds) => {
+      const colors = Object.keys(data?.name_colors?.[ds.label] || {});
+      if (!colors.length) return ds; // fall back to the solid color
+      return {
+        ...ds,
+        backgroundColor: createDiagonalPattern(getColors(colors)),
+      };
+    });
+    return { labels, datasets };
+  }, [data]);
+
   if (loading || !data) {
     return (
       <div className="digi-loading-container">
@@ -301,43 +315,29 @@ export default function Dashboard() {
 
         <AnalyticsChart title="TOP 15 ORIGINAL CARD PRINTED NAMES">
           <Bar
-            data={{
-              labels: data.name_labels || [],
-              datasets: createInteractiveDatasets(
-                data.name_labels,
-                data.name_data,
-                DISTINCT_COLORS_15
-              ),
-            }}
+            data={nameChartData}
             options={{
               ...stackedDarkOptions,
-
-              onClick: (_event, elements) => {
-                if (
-                  !elements ||
-                  elements.length === 0
-                ) {
-                  return;
-                }
-
-                const index = elements[0].index;
-                const name =
-                  data.name_labels?.[index];
-
-                if (name) {
-                  openCardName(name);
-                }
+              plugins: {
+                ...stackedDarkOptions.plugins,
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => `${ctx.dataset.label} total: ${ctx.parsed.y}`,
+                    afterLabel: (ctx) =>
+                      Object.entries(data.name_colors?.[ctx.dataset.label] ?? {}).map(
+                        ([color, count]) => `${color}: ${count}`
+                      ),
+                  },
+                },
               },
-
-              onHover: (
-                event,
-                elements
-              ) => {
+              onClick: (_event, elements) => {
+                if (!elements?.length) return;
+                const name = data.name_labels?.[elements[0].index];
+                if (name) openCardName(name);
+              },
+              onHover: (event, elements) => {
                 if (event?.native?.target) {
-                  event.native.target.style.cursor =
-                    elements?.length
-                      ? 'pointer'
-                      : 'default';
+                  event.native.target.style.cursor = elements?.length ? 'pointer' : 'default';
                 }
               },
             }}

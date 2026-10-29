@@ -235,11 +235,16 @@ export default function Dashboard() {
       data?.name_data,
       DISTINCT_COLORS_15
     ).map((ds) => {
-      const colors = Object.keys(data?.name_colors?.[ds.label] || {});
-      if (!colors.length) return ds; // fall back to the solid color
+      const colorCounts = data?.name_colors?.[ds.label] || {};
+      const colorNames = Object.keys(colorCounts);
+      if (!colorNames.length) return ds; // fall back to the solid color
+
+      const resolvedColors = getColors(colorNames);
+      const entries = colorNames.map((name, i) => [resolvedColors[i], colorCounts[name]]);
+
       return {
         ...ds,
-        backgroundColor: createDiagonalPattern(getColors(colors)),
+        backgroundColor: createDiagonalPattern(entries),
       };
     });
     return { labels, datasets };

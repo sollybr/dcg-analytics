@@ -1,17 +1,16 @@
 const cache = new Map();
 
 /**
- * Seamless 45° stripe pattern with one equal-width stripe per color.
- * One color returns a plain solid color.
- * Dynamically scales stripe widths to fit a target bar width (default 120px),
- * ensuring exactly n stripes are evenly distributed across the bar.
+ * Seamless 45° stripe pattern with stripe widths proportional to their quantities.
+ * Single color entry returns a plain solid color.
  */
-export function createDiagonalPattern(colors, targetWidth = 120) {
-  if (colors.length === 1) return colors[0];
+export function createDiagonalPattern(colorEntries, targetWidth = 120) {
+  if (colorEntries.length === 1) return colorEntries[0][0];
 
-  const n = colors.length;
-  const stripe = targetWidth / n;
-  const key = `${targetWidth}|${colors.join('|')}`;
+  const totalCount = colorEntries.reduce((sum, [, count]) => sum + count, 0);
+  if (totalCount === 0) return colorEntries[0]?.[0] || '#ccc';
+
+  const key = `${targetWidth}|${colorEntries.map(([c, cnt]) => `${c}:${cnt}`).join('|')}`;
   if (cache.has(key)) return cache.get(key);
 
   const T = targetWidth;
@@ -20,18 +19,23 @@ export function createDiagonalPattern(colors, targetWidth = 120) {
   tile.height = T;
   const g = tile.getContext('2d');
 
-  colors.forEach((color, i) => {
+  let currentX = 0;
+  colorEntries.forEach(([color, count]) => {
+    const proportion = count / totalCount;
+    const stripeWidth = proportion * T;
+
     g.fillStyle = color;
     // Draw shifted copies so the slanted stripes wrap seamlessly.
     for (const off of [-T, 0, T]) {
       g.beginPath();
-      g.moveTo(i * stripe + off, 0);
-      g.lineTo((i + 1) * stripe + off, 0);
-      g.lineTo((i + 1) * stripe + off - T, T);
-      g.lineTo(i * stripe + off - T, T);
+      g.moveTo(currentX + off, 0);
+      g.lineTo(currentX + stripeWidth + off, 0);
+      g.lineTo(currentX + stripeWidth + off - T, T);
+      g.lineTo(currentX + off - T, T);
       g.closePath();
       g.fill();
     }
+    currentX += stripeWidth;
   });
 
   const pattern = tile.getContext('2d').createPattern(tile, 'repeat');

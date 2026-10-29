@@ -26,6 +26,7 @@ FIELD_OPTIONS_MAX_LIMIT = 100
 # and labelled by expansion name.
 EXPANSION_FIELD = "expansion"
 
+EXPANSION_LABEL_OVERRIDES = {"P": "Promos"}
 
 def get_expansion_names():
     """
@@ -46,6 +47,15 @@ def get_expansion_names():
     return names
 
 
+def _search_names(code, names_by_code):
+    """Every name a query may match for this code (overrides included)."""
+    names = list(names_by_code.get(code, ()))
+    override = EXPANSION_LABEL_OVERRIDES.get(code)
+    if override:
+        names.append(override)
+    return names
+
+
 def get_field_options(field, query="", limit=FIELD_OPTIONS_DEFAULT_LIMIT):
     """
     Distinct values (with card counts) for one card field. `field` must be a
@@ -56,19 +66,26 @@ def get_field_options(field, query="", limit=FIELD_OPTIONS_DEFAULT_LIMIT):
 
     For the expansion field, the query also matches expansion names, and each
     option carries a `label` with the name(s) for display. `value` stays the
-    code, which is what the card filter uses. For every other field, `label`
-    equals `value`.
+    code, which is what the card filter uses. Codes in
+    EXPANSION_LABEL_OVERRIDES display their fixed label instead of the list
+    of names. For every other field, `label` equals `value`.
     """
     needle = query.lower()
-    names_by_code = get_expansion_names() if field == EXPANSION_FIELD else {}
+    is_expansion = field == EXPANSION_FIELD
+    names_by_code = get_expansion_names() if is_expansion else {}
 
-    # Upper-cased codes whose expansion name contains the query.
+    # Upper-cased codes whose expansion name (or override label) contains
+    # the query.
     name_matched = set()
-    if needle:
+    if needle and is_expansion:
+        codes = set(names_by_code) | set(EXPANSION_LABEL_OVERRIDES)
         name_matched = {
             code
-            for code, names in names_by_code.items()
-            if any(needle in name.lower() for name in names)
+            for code in codes
+            if any(
+                needle in name.lower()
+                for name in _search_names(code, names_by_code)
+            )
         }
 
     cards = DigimonCard.objects.exclude(**{field: ""})
@@ -111,9 +128,11 @@ def get_field_options(field, query="", limit=FIELD_OPTIONS_DEFAULT_LIMIT):
     def starts_with_query(value):
         if value.lower().startswith(needle):
             return True
+        if not is_expansion:
+            return False
         return any(
             name.lower().startswith(needle)
-            for name in names_by_code.get(value.upper(), ())
+            for name in _search_names(value.upper(), names_by_code)
         )
 
     ordered = sorted(
@@ -126,6 +145,11 @@ def get_field_options(field, query="", limit=FIELD_OPTIONS_DEFAULT_LIMIT):
     )
 
     def label_for(value):
+        if not is_expansion:
+            return value
+        override = EXPANSION_LABEL_OVERRIDES.get(value.upper())
+        if override:
+            return override
         names = names_by_code.get(value.upper())
         return " / ".join(names) if names else value
 

@@ -47,8 +47,22 @@ class CardAnalyticsEngine:
         return chart_payload("type", counter.items())
 
     def get_names(self, limit=15):
-        counter = Counter(c.name or "Unknown" for c in self.cards)
-        return chart_payload("name", counter.most_common(limit))
+	    counter = Counter(c.name or "Unknown" for c in self.cards)
+	    top = counter.most_common(limit)
+	    top_names = {name for name, _ in top}
+
+	    colors = {name: Counter() for name in top_names}
+	    for c in self.cards:
+	        name = c.name or "Unknown"
+	        if name not in top_names:
+	            continue
+	        color = (c.color or "Unknown").strip()
+	        colors[name].update(split_multi(color) if "/" in color else [color])
+
+	    return {
+	        **chart_payload("name", top),
+	        "name_colors": {n: dict(cnt.most_common()) for n, cnt in colors.items()},
+	    }
 
     def get_colors(self, multi_limit=10):
         single, multi = Counter(), Counter()

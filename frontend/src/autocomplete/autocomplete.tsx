@@ -49,7 +49,8 @@ const DEBOUNCE_MS = 250;
 
 type Suggestion = {
     id: string;
-    label: string;
+    label: string;   
+    detail?: string; 
     count?: number;
 };
 
@@ -121,10 +122,14 @@ function FieldAutocomplete({
                     query,
                     error: false,
                     items: response.options.map((option) => ({
-                        id: option.value,
-                        label: option.value,
-                        count: option.count,
-                    })),
+					    id: option.value,
+					    label: option.value,
+					    detail:
+					        option.label && option.label !== option.value
+					            ? option.label
+					            : undefined,
+					    count: option.count,
+					})),
                 });
             } catch {
                 if (controller.signal.aborted) {
@@ -200,17 +205,22 @@ function FieldAutocomplete({
                 >
                     {(item) => (
                         <ListBoxItem
-                            id={item.id}
-                            textValue={item.label}
-                            className="field-autocomplete-item"
-                        >
-                            <span>{item.label}</span>
-                            {item.count !== undefined && (
-                                <span className="field-autocomplete-count">
-                                    {item.count}
-                                </span>
-                            )}
-                        </ListBoxItem>
+						    id={item.id}
+						    textValue={item.label}
+						    className="field-autocomplete-item"
+						>
+						    <span>
+						        {item.label}
+						        {item.detail && (
+						            <span className="field-autocomplete-detail">
+						                {" "}({item.detail})
+						            </span>
+						        )}
+						    </span>
+						    {item.count !== undefined && (
+						        <span className="field-autocomplete-count">{item.count}</span>
+						    )}
+						</ListBoxItem>
                     )}
                 </ListBox>
             </Popover>

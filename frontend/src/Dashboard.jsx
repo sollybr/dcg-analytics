@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -30,10 +30,12 @@ import {
 } from './chartUtils';
 
 import { fetchAnalytics, fetchCardsByName, fetchCardsByType } from './api';
+import { createDiagonalPattern } from './stripedPattern';
 
 const AnalyticsChart = lazy(() => import('./components/AnalyticsChart'));
 import DashboardHeader from './components/DashboardHeader';
 import DashboardFooter from './components/DashboardFooter';
+import DashboardDrawer, { useIsMobile } from './components/DashboardDrawer';
 const CardDetailView = lazy(() => import('./components/CardDetailView'));
 const CardTypeDetailView = lazy(() => import('./components/CardTypeDetailView'));
 const AdvancedStatisticsView = lazy(() => import('./components/AdvancedStatisticsView'));
@@ -56,6 +58,8 @@ ChartJS.defaults.color = '#7dd3fc';
 ChartJS.defaults.font.family =
   "'Pixel Digivolve', monospace";
 
+const ANALYTICS_EXCLUSIONS = { excludeExpansions: ['P', 'ST'], excludeTypes: ['Lesser'] };
+
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -77,17 +81,20 @@ export default function Dashboard() {
   const [typeCardsLoading, setTypeCardsLoading] = useState(false);
   const observerTarget = useRef(null);
 
+  const isMobile = useIsMobile();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+
   useEffect(() => {
-    fetchAnalytics({ excludeExpansions: ['P', 'ST'], excludeTypes: ['Lesser'] })
-      .then((result) => {
-        setData(result);
-        setLoading(false);
-      })
+    if (!isMobile) setDrawerOpen(false);
+  }, [isMobile]);
+
+  useEffect(() => {
+    fetchAnalytics(ANALYTICS_EXCLUSIONS)
+      .then((result) => { setData(result); setLoading(false); })
       .catch((error) => {
-        console.error(
-          'Error fetching analytics:',
-          error
-        );
+        console.error('Error fetching analytics:', error);
         setLoading(false);
       });
   }, []);
@@ -211,13 +218,37 @@ export default function Dashboard() {
     closeCardName();
     closeCardType();
     setActiveScreen('home');
+    setDrawerOpen(false);
   };
 
   const goAdvanced = () => {
     closeCardName();
     closeCardType();
     setActiveScreen('advanced');
+    setDrawerOpen(false);
   };
+
+  const nameChartData = useMemo(() => {
+    const labels = data?.name_labels || [];
+    const datasets = createInteractiveDatasets(
+      labels,
+      data?.name_data,
+      DISTINCT_COLORS_15
+    ).map((ds) => {
+      const colorCounts = data?.name_colors?.[ds.label] || {};
+      const colorNames = Object.keys(colorCounts);
+      if (!colorNames.length) return ds; // fall back to the solid color
+
+      const resolvedColors = getColors(colorNames);
+      const entries = colorNames.map((name, i) => [resolvedColors[i], colorCounts[name]]);
+
+      return {
+        ...ds,
+        backgroundColor: createDiagonalPattern(entries),
+      };
+    });
+    return { labels, datasets };
+  }, [data]);
 
   if (loading || !data) {
     return (
@@ -289,43 +320,29 @@ export default function Dashboard() {
 
         <AnalyticsChart title="TOP 15 ORIGINAL CARD PRINTED NAMES">
           <Bar
-            data={{
-              labels: data.name_labels || [],
-              datasets: createInteractiveDatasets(
-                data.name_labels,
-                data.name_data,
-                DISTINCT_COLORS_15
-              ),
-            }}
+            data={nameChartData}
             options={{
               ...stackedDarkOptions,
-
-              onClick: (_event, elements) => {
-                if (
-                  !elements ||
-                  elements.length === 0
-                ) {
-                  return;
-                }
-
-                const index = elements[0].index;
-                const name =
-                  data.name_labels?.[index];
-
-                if (name) {
-                  openCardName(name);
-                }
+              plugins: {
+                ...stackedDarkOptions.plugins,
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => `${ctx.dataset.label} total: ${ctx.parsed.y}`,
+                    afterLabel: (ctx) =>
+                      Object.entries(data.name_colors?.[ctx.dataset.label] ?? {}).map(
+                        ([color, count]) => `${color}: ${count}`
+                      ),
+                  },
+                },
               },
-
-              onHover: (
-                event,
-                elements
-              ) => {
+              onClick: (_event, elements) => {
+                if (!elements?.length) return;
+                const name = data.name_labels?.[elements[0].index];
+                if (name) openCardName(name);
+              },
+              onHover: (event, elements) => {
                 if (event?.native?.target) {
-                  event.native.target.style.cursor =
-                    elements?.length
-                      ? 'pointer'
-                      : 'default';
+                  event.native.target.style.cursor = elements?.length ? 'pointer' : 'default';
                 }
               },
             }}
@@ -459,7 +476,26 @@ export default function Dashboard() {
 
   return (
     <div className="digi-dashboard">
-      <DashboardHeader totalCards={data.total_cards} />
+      <div className="digi-topbar">
+        <button
+          type="button"
+          className="digi-menu-toggle"
+          onClick={openDrawer}
+          aria-label="Open menu"
+          aria-expanded={drawerOpen}
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path
+              d="M3 6h18M3 12h18M3 18h18"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              fill="none"
+            />
+          </svg>
+        </button>
+        <DashboardHeader totalCards={data.total_cards} />
+      </div>
 
       <div className="digi-dashboard-menu">
         <button
@@ -498,6 +534,18 @@ export default function Dashboard() {
       </Suspense>
 
       <DashboardFooter />
+
+      <DashboardDrawer
+        open={drawerOpen}
+        enabled={isMobile}
+        onOpen={openDrawer}
+        onClose={closeDrawer}
+        activeId={activeScreen}
+        items={[
+          { id: 'home', label: 'HOME', onClick: goHome },
+          { id: 'advanced', label: 'MORE DISTRIBUTIONS', onClick: goAdvanced },
+        ]}
+      />
     </div>
   );
 

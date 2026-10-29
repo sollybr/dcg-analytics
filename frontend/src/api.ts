@@ -46,7 +46,8 @@ export async function fetchCardsByType(
 
 export interface FieldOption {
     value: string;
-    count?: number;
+    label?: string;
+    count: number;
 }
 
 export interface FieldOptionsResponse {

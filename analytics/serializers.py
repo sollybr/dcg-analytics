@@ -1,5 +1,7 @@
 from rest_framework import serializers
-from .models import DigimonCard, CardImage
+
+from .models import CardImage, DigimonCard
+from .utils.expansions import get_expansion_map, resolve_expansion_name
 
 
 class CardImageSerializer(serializers.ModelSerializer):
@@ -14,8 +16,7 @@ class CardSerializer(serializers.ModelSerializer):
     class Meta:
         model = DigimonCard
         fields = ['id', 'card_number', 'name', 'card_type', 'color', 'images']
-from rest_framework import serializers
-from .models import DigimonCard, CardExpansion
+
 
 class DigimonCardSerializer(serializers.ModelSerializer):
     expansion_name = serializers.SerializerMethodField()
@@ -31,20 +32,13 @@ class DigimonCardSerializer(serializers.ModelSerializer):
             # ... other fields
         ]
 
+    def _expansion_map(self) -> dict:
+        # Load {code: name} once per request and share it across every card
+        # in a list response (child serializers share the root's context).
+        context = self.context
+        if "expansion_map" not in context:
+            context["expansion_map"] = get_expansion_map()
+        return context["expansion_map"]
+
     def get_expansion_name(self, obj: DigimonCard) -> str:
-        if not obj.expansion:
-            return "Unknown Expansion"
-
-        # 1. Direct match on exact code (e.g., BT18-19)
-        exp = CardExpansion.objects.filter(expansion_code=obj.expansion).first()
-        if exp and exp.expansion_name:
-            return exp.expansion_name
-
-        # 2. Range containment match if card has base code like 'BT19'
-        range_exp = CardExpansion.objects.filter(
-            expansion_code__icontains=obj.expansion
-        ).first()
-        if range_exp and range_exp.expansion_name:
-            return range_exp.expansion_name
-
-        return obj.expansion
+        return resolve_expansion_name(obj.expansion, self._expansion_map())

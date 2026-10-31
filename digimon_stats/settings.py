@@ -70,25 +70,47 @@ DIGIMON_IMAGE_SYNC = {
     # -------------------------------------------------------------------------
     # SOURCE CONFIGURATION
     # -------------------------------------------------------------------------
-    'SOURCE_TYPE': os.getenv('DIGIMON_IMAGE_SOURCE_TYPE', 'github_repo'),
+    # Options: 'garage_cdn' (default), 'github_repo' (DEPRECATED)
+    'SOURCE_TYPE': os.getenv('DIGIMON_IMAGE_SOURCE_TYPE', 'garage_cdn'),
+
+    # --- Garage CDN (current source) ---
+    # Public web endpoint that serves the images, e.g. {base}/BT1-001.webp
+    'GARAGE_PUBLIC_BASE_URL': os.getenv('GARAGE_PUBLIC_BASE_URL', 'https://web-garage.takaotaku.de'),
+
+    # Optional: Garage S3 API credentials. If ALL of endpoint/bucket/key/secret
+    # are set, the sync lists the bucket directly (picks up every file).
+    # If any are missing, it falls back to building the expected filenames from
+    # each card's JSON (cardImage + AAs/JAAs ids) and HEAD-probing the CDN.
+    # Ask the Garage owners for a read-only key; the endpoint is the S3 API URL
+    # (default port 3900), NOT the web endpoint above.
+    'GARAGE_S3_ENDPOINT': os.getenv('GARAGE_S3_ENDPOINT', ''),
+    'GARAGE_BUCKET': os.getenv('GARAGE_BUCKET', ''),
+    'GARAGE_ACCESS_KEY_ID': os.getenv('GARAGE_ACCESS_KEY_ID', ''),
+    'GARAGE_SECRET_ACCESS_KEY': os.getenv('GARAGE_SECRET_ACCESS_KEY', ''),
+    # Must match s3_region in Garage's garage.toml.
+    'GARAGE_REGION': os.getenv('GARAGE_REGION', 'garage'),
+    # Optional key prefix to restrict the bucket listing.
+    'GARAGE_PREFIX': os.getenv('GARAGE_PREFIX', ''),
+
+    # Name of the DigimonCard JSONField holding the raw card JSON, used by the
+    # probe fallback. Leave blank to auto-detect (works if the model has exactly
+    # one JSONField).
+    'CARD_JSON_FIELD': os.getenv('DIGIMON_CARD_JSON_FIELD', ''),
+
+    # --- GitHub repo (DEPRECATED, will be removed) ---
+    # Card images are no longer stored in the repo. These keys are only read
+    # when SOURCE_TYPE='github_repo'.
     'GITHUB_API_URL': os.getenv(
         'DIGIMON_GITHUB_API_URL',
         'https://api.github.com/repos/TakaOtaku/Digimon-Card-App/contents/src/assets/images/cards'
     ),
-    # Branch to read from when fetching the full file tree via GitHub's
-    # Git Trees API (used to get past the Contents API's ~1000-entry cap
-    # on large directories).
     'GITHUB_BRANCH': os.getenv('DIGIMON_GITHUB_BRANCH', 'main'),
-    # Optional. A GitHub personal access token (no special scopes needed for
-    # a public repo) raises the API rate limit from 60/hr to 5000/hr and
-    # tends to make the Trees API more reliable under load. Safe to leave
-    # unset — falls back to unauthenticated requests.
     'GITHUB_TOKEN': os.getenv('GITHUB_TOKEN', ''),
 
     # -------------------------------------------------------------------------
     # STORAGE BACKEND
     # -------------------------------------------------------------------------
-    # Options: 'vercel_blob', 'r2', 'database'
+    # Options: 'vercel_blob', 'r2'
     'STORAGE_BACKEND': os.getenv('DIGIMON_STORAGE_BACKEND', 'r2'),
 
     # --- Vercel Blob (legacy / kept for reference & possible fallback) ---
@@ -111,7 +133,7 @@ DIGIMON_IMAGE_SYNC = {
     # ALTERNATE ART PATTERN MATCHING
     # -------------------------------------------------------------------------
     # Keywords in filename that denote an Alternate Art or Promo
-    # e.g., "BT1-084_P1.png" or "BT1-084_AA.png" or "BT1-084_PARALLEL.png"
+    # e.g., "BT1-084_P1.webp" or "BT1-084_AA.webp" or "BT1-084_PARALLEL.webp"
     'ALT_ART_INDICATORS': ['_P', '_AA', '_PARALLEL', '_PROMO', '_ALT'],
 }
 

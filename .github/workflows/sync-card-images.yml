@@ -19,6 +19,9 @@ on:
         description: "Concurrent download/upload threads"
         default: "8"
 
+permissions:
+  contents: read
+
 concurrency:
   group: sync-card-images
   cancel-in-progress: false

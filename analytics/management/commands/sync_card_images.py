@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from django.core.management.base import BaseCommand
 from django.conf import settings
+from django.db import connection
 
 from analytics.models import DigimonCard, CardImage
 
@@ -18,6 +19,7 @@ import xml.etree.ElementTree as ET
 from urllib.parse import quote, urlparse
 
 mimetypes.add_type('image/webp', '.webp')
+
 
 class Command(BaseCommand):
     help = "Sync card images from the configured source (Garage CDN by default; the GitHub repo source is deprecated) to the configured storage backend, linking them to DigimonCard via CardImage."
@@ -235,6 +237,7 @@ class Command(BaseCommand):
         else:
             cards = self._load_card_json_from_db(sync_config)
             candidates = self._candidate_keys_from_card_json(cards)
+            connection.close()  # don't hold an idle DB connection open during the CDN probe
             self.stdout.write(f"Probing {len(candidates)} candidate files on the CDN...")
             keys = self._probe_keys(base_url, candidates, workers)
 
@@ -677,6 +680,7 @@ class Command(BaseCommand):
         synced_count = 0
         failed_count = 0
 
+        connection.close()  # the DB sat idle during downloads/uploads of the first batch; reconnect fresh
         with ThreadPoolExecutor(max_workers=workers) as executor:
             future_to_item = {
                 executor.submit(

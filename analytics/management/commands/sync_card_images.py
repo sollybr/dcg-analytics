@@ -1,4 +1,5 @@
 import os
+import json
 import re
 import mimetypes
 import requests
@@ -10,12 +11,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from django.core.management.base import BaseCommand
 from django.conf import settings
+from django.db import connection
 
 from analytics.models import DigimonCard, CardImage
 
+import xml.etree.ElementTree as ET
+from urllib.parse import quote, urlparse
+
+mimetypes.add_type('image/webp', '.webp')
+
 
 class Command(BaseCommand):
-    help = "Sync card images from the configured source (GitHub repo by default) to the configured storage backend, linking them to DigimonCard via CardImage."
+    help = "Sync card images from the configured source (Garage CDN by default; the GitHub repo source is deprecated) to the configured storage backend, linking them to DigimonCard via CardImage."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -50,6 +57,7 @@ class Command(BaseCommand):
     # tags, etc.) rather than part of the card number itself.
     CARD_NUMBER_RE = re.compile(r'^([A-Za-z]+\d*-\d+)')
 
+    # DEPRECATED (GitHub source): card images moved to the Garage CDN.
     # Matches https://api.github.com/repos/{owner}/{repo}/contents/{path}
     # so we can derive the pieces needed for the Git Trees API without
     # requiring new settings keys.
@@ -59,6 +67,8 @@ class Command(BaseCommand):
 
     def _github_get_with_retry(self, url, headers, attempts=3):
         """
+        DEPRECATED: only used by the legacy GitHub source (SOURCE_TYPE='github_repo').
+
         GET with basic retry/backoff for transient GitHub API errors.
         The Trees API occasionally returns a bare 500 (not a documented
         status for this endpoint) under load; a short retry clears most
@@ -75,8 +85,178 @@ class Command(BaseCommand):
                 time.sleep(2 ** attempt)  # 1s, 2s, ...
         return last_response
 
+    IMAGE_EXTS = ('.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif')
+
+    def _s3_list_keys(self, endpoint, bucket, access_key, secret_key, region, prefix=''):
+        """List object keys in a Garage (S3-compatible) bucket via ListObjectsV2, SigV4-signed."""
+        host = urlparse(endpoint).netloc
+        keys, token = [], None
+
+        while True:
+            params = {'list-type': '2'}
+            if prefix:
+                params['prefix'] = prefix
+            if token:
+                params['continuation-token'] = token
+            canonical_qs = '&'.join(
+                f"{quote(k, safe='-_.~')}={quote(v, safe='-_.~')}"
+                for k, v in sorted(params.items())
+            )
+
+            now = datetime.datetime.now(datetime.timezone.utc)
+            amz_date = now.strftime('%Y%m%dT%H%M%SZ')
+            date_stamp = now.strftime('%Y%m%d')
+            payload_hash = hashlib.sha256(b'').hexdigest()
+
+            canonical_headers = (
+                f"host:{host}\n"
+                f"x-amz-content-sha256:{payload_hash}\n"
+                f"x-amz-date:{amz_date}\n"
+            )
+            signed_headers = 'host;x-amz-content-sha256;x-amz-date'
+            canonical_request = "\n".join([
+                'GET', f"/{bucket}", canonical_qs, canonical_headers, signed_headers, payload_hash,
+            ])
+
+            scope = f"{date_stamp}/{region}/s3/aws4_request"
+            string_to_sign = "\n".join([
+                'AWS4-HMAC-SHA256', amz_date, scope,
+                hashlib.sha256(canonical_request.encode('utf-8')).hexdigest(),
+            ])
+            signing_key = self._sigv4_signing_key(secret_key, date_stamp, region, 's3')
+            signature = hmac.new(signing_key, string_to_sign.encode('utf-8'), hashlib.sha256).hexdigest()
+
+            headers = {
+                'X-Amz-Content-SHA256': payload_hash,
+                'X-Amz-Date': amz_date,
+                'Authorization': (
+                    f"AWS4-HMAC-SHA256 Credential={access_key}/{scope}, "
+                    f"SignedHeaders={signed_headers}, Signature={signature}"
+                ),
+            }
+            resp = requests.get(f"{endpoint.rstrip('/')}/{bucket}?{canonical_qs}", headers=headers, timeout=30)
+            if resp.status_code != 200:
+                raise RuntimeError(f"Garage list failed ({resp.status_code}): {resp.text[:300]}")
+
+            root = ET.fromstring(resp.content)
+            # Strip the S3 XML namespace so we can match on plain tag names
+            for el in root.iter():
+                el.tag = el.tag.rsplit('}', 1)[-1]
+
+            keys.extend(k.text for k in root.findall('.//Contents/Key') if k.text)
+
+            if (root.findtext('IsTruncated') or '').lower() == 'true':
+                token = root.findtext('NextContinuationToken')
+                if not token:
+                    break
+            else:
+                break
+
+        return keys
+
+
+    def _candidate_keys_from_card_json(self, cards, default_ext='.webp'):
+        """
+        Build the expected CDN filenames: the basename of each card's cardImage,
+        plus one {id}{ext} per entry in AAs and JAAs.
+        """
+        keys, seen = [], set()
+
+        def add(key):
+            if key and key not in seen:
+                seen.add(key)
+                keys.append(key)
+
+        for card in cards:
+            image_path = card.get('cardImage') or ''
+            ext = os.path.splitext(image_path)[1] or default_ext
+            if image_path:
+                add(image_path.rsplit('/', 1)[-1])
+            else:
+                number = card.get('cardNumber') or card.get('id')
+                if number:
+                    add(f"{number}{ext}")
+            for alt in (card.get('AAs') or []) + (card.get('JAAs') or []):
+                if alt.get('id'):
+                    add(f"{alt['id']}{ext}")
+        return keys
+
+    def _load_card_json_from_db(self, sync_config):
+        """Pull each card's raw JSON from the DigimonCard JSON field."""
+        from django.db.models import JSONField
+
+        field_name = sync_config.get('CARD_JSON_FIELD')
+        if not field_name:
+            json_fields = [
+                f.name for f in DigimonCard._meta.get_fields() if isinstance(f, JSONField)
+            ]
+            if len(json_fields) != 1:
+                raise RuntimeError(
+                    f"Expected exactly one JSONField on DigimonCard, found {json_fields or 'none'}. "
+                    "Set CARD_JSON_FIELD in DIGIMON_IMAGE_SYNC to pick one."
+                )
+            field_name = json_fields[0]
+
+        self.stdout.write(f"Reading card JSON from DigimonCard.{field_name}...")
+        cards = []
+        for value in DigimonCard.objects.values_list(field_name, flat=True):
+            if isinstance(value, str):  # in case it was stored as serialized text
+                try:
+                    value = json.loads(value)
+                except ValueError:
+                    continue
+            if isinstance(value, dict):
+                cards.append(value)
+        return cards
+
+    def _probe_keys(self, base_url, candidate_keys, workers):
+        """HEAD-check each candidate filename on the CDN and return the ones that exist."""
+        def head(key):
+            try:
+                r = requests.head(f"{base_url}/{quote(key)}", timeout=15, allow_redirects=True)
+                return key if r.status_code == 200 else None
+            except requests.RequestException:
+                return None
+
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            return [k for k in ex.map(head, candidate_keys) if k]
+
+    def fetch_garage_files(self, sync_config, workers):
+        """Return the same {name, download_url, type} dicts the GitHub path produces."""
+        base_url = sync_config.get('GARAGE_PUBLIC_BASE_URL', 'https://web-garage.takaotaku.de').rstrip('/')
+        endpoint = sync_config.get('GARAGE_S3_ENDPOINT')
+        bucket = sync_config.get('GARAGE_BUCKET')
+        access_key = sync_config.get('GARAGE_ACCESS_KEY_ID')
+        secret_key = sync_config.get('GARAGE_SECRET_ACCESS_KEY')
+        region = sync_config.get('GARAGE_REGION', 'garage')
+        prefix = sync_config.get('GARAGE_PREFIX', '')
+
+        if endpoint and bucket and access_key and secret_key:
+            self.stdout.write(f"Listing Garage bucket '{bucket}' via S3 API...")
+            keys = self._s3_list_keys(endpoint, bucket, access_key, secret_key, region, prefix)
+        else:
+            cards = self._load_card_json_from_db(sync_config)
+            candidates = self._candidate_keys_from_card_json(cards)
+            connection.close()  # don't hold an idle DB connection open during the CDN probe
+            self.stdout.write(f"Probing {len(candidates)} candidate files on the CDN...")
+            keys = self._probe_keys(base_url, candidates, workers)
+
+        return [
+            {
+                "name": key.rsplit('/', 1)[-1],
+                "download_url": f"{base_url}/{quote(key)}",
+                "type": "file",
+            }
+            for key in keys
+            if key.lower().endswith(self.IMAGE_EXTS)
+        ]
+
     def fetch_all_repo_files(self, github_api_url, branch, github_token=None):
         """
+        DEPRECATED: card images are no longer stored in the GitHub repo and are
+        served from the Garage CDN instead (SOURCE_TYPE='garage_cdn', the default).
+        Kept only for backwards compatibility and slated for removal.
+
         Fetch the file list for the configured GitHub images folder using
         the Git Trees API, scoped to just that folder rather than the whole
         repo.
@@ -291,6 +471,7 @@ class Command(BaseCommand):
             raise RuntimeError(f"Failed to download {raw_url} ({img_res.status_code})")
 
         image_bytes = img_res.content
+
         mime_type, _ = mimetypes.guess_type(filename)
         mime_type = mime_type or "image/png"
 
@@ -322,8 +503,7 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR("--force and --only-missing are mutually exclusive."))
             return
 
-        source_type = sync_config.get('SOURCE_TYPE', 'github_repo')
-        github_api_url = sync_config.get('GITHUB_API_URL')
+        source_type = sync_config.get('SOURCE_TYPE', 'garage_cdn')
 
         storage_backend = sync_config.get('STORAGE_BACKEND', 'r2')
         alt_indicators = sync_config.get('ALT_ART_INDICATORS', ['_P', '_AA', '_PARALLEL', '_PROMO', '_ALT'])
@@ -375,20 +555,27 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR(f"Unsupported storage backend: '{storage_backend}'"))
             return
 
-        if source_type != 'github_repo':
+        if source_type not in ('garage_cdn', 'github_repo'):
             self.stderr.write(self.style.ERROR(f"Unsupported source type: '{source_type}'"))
             return
 
-        branch = sync_config.get('GITHUB_BRANCH', 'main')
-        github_token = sync_config.get('GITHUB_TOKEN') or os.getenv('GITHUB_TOKEN')
-
         try:
-            files = self.fetch_all_repo_files(github_api_url, branch, github_token=github_token)
-        except (ValueError, RuntimeError) as e:
+            if source_type == 'garage_cdn':
+                files = self.fetch_garage_files(sync_config, workers)
+            else:
+                self.stderr.write(self.style.WARNING(
+                    "DEPRECATED: SOURCE_TYPE='github_repo' is deprecated and will be removed. "
+                    "Card images now live on the Garage CDN; use SOURCE_TYPE='garage_cdn'."
+                ))
+                github_api_url = sync_config.get('GITHUB_API_URL')
+                branch = sync_config.get('GITHUB_BRANCH', 'main')
+                github_token = sync_config.get('GITHUB_TOKEN') or os.getenv('GITHUB_TOKEN')
+                files = self.fetch_all_repo_files(github_api_url, branch, github_token=github_token)
+        except (ValueError, RuntimeError, requests.RequestException) as e:
             self.stderr.write(self.style.ERROR(str(e)))
             return
 
-        self.stdout.write(f"Found {len(files)} files in repo.")
+        self.stdout.write(f"Found {len(files)} files at source '{source_type}'.")
 
         cards_with_images = set()
         if only_missing:
@@ -493,6 +680,7 @@ class Command(BaseCommand):
         synced_count = 0
         failed_count = 0
 
+        connection.close()  # the DB sat idle during downloads/uploads of the first batch; reconnect fresh
         with ThreadPoolExecutor(max_workers=workers) as executor:
             future_to_item = {
                 executor.submit(

@@ -18,6 +18,13 @@ class Command(BaseCommand):
         with connection.cursor() as cursor:
             return table_name not in connection.introspection.table_names(cursor)
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--images',
+            action='store_true',
+            help='Also run sync_card_images after the card sync (requires R2 or Vercel Blob config).',
+        )
+
     def handle(self, *args, **options):
         # -------------------------------------------------------------------
         # 1. Schema sanity check
@@ -71,7 +78,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING("Syncing card & expansion data..."))
         try:
             result = sync_cards(stdout_writer=self.stdout.write, sync_expansions_table=True)
-            
+
             elapsed = result.get("elapsed_formatted", "")
             created = result.get("created", 0)
             updated = result.get("updated", 0)
@@ -91,23 +98,40 @@ class Command(BaseCommand):
             return
 
         # -------------------------------------------------------------------
-        # 4. Sync card images (optional — only if Vercel Blob is configured)
+        # 3. Sync card images (opt-in: pass --images)
         # -------------------------------------------------------------------
-        sync_config = getattr(settings, 'DIGIMON_IMAGE_SYNC', {})
-        blob_token = sync_config.get('BLOB_READ_WRITE_TOKEN') or os.getenv('BLOB_READ_WRITE_TOKEN')
+        if not options['images']:
+            self.stdout.write("Skipping image sync (pass --images to include it).")
+            return
 
-        if not blob_token:
+        sync_config = getattr(settings, 'DIGIMON_IMAGE_SYNC', {})
+        backend = sync_config.get('STORAGE_BACKEND', 'r2')
+
+        if backend == 'r2':
+            required = [
+                'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY',
+                'R2_BUCKET_NAME', 'R2_PUBLIC_BASE_URL',
+            ]
+            missing = [k for k in required if not sync_config.get(k)]
+        elif backend == 'vercel_blob':
+            has_token = sync_config.get('BLOB_READ_WRITE_TOKEN') or os.getenv('BLOB_READ_WRITE_TOKEN')
+            missing = [] if has_token else ['BLOB_READ_WRITE_TOKEN']
+        else:
+            missing = [f"a supported STORAGE_BACKEND (got '{backend}')"]
+
+        if missing:
             self.stdout.write(
                 self.style.WARNING(
-                    "No BLOB_READ_WRITE_TOKEN found in DIGIMON_IMAGE_SYNC/env — skipping image sync. "
+                    f"Skipping image sync, missing config: {', '.join(missing)}. "
                     "The app will run fine without images; card.images will just be empty."
                 )
             )
             return
 
         self.stdout.write(self.style.WARNING("Syncing card images..."))
+        connection.close()  # connection may have idled during the card sync; reconnect fresh
         try:
-            call_command('sync_card_images')
-            self.stdout.write(self.style.SUCCESS("Image sync complete!"))
+            call_command('sync_card_images', stdout=self.stdout, stderr=self.stderr)
+            self.stdout.write(self.style.SUCCESS("Image sync finished (check the output above for any errors)."))
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Error during image sync: {e}"))

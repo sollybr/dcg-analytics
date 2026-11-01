@@ -1,7 +1,7 @@
-FROM node:26.12.1-alpine3.24 AS build # FROM node:20-alpine AS build
-RUN corepack enable
+FROM node:26.12.1-alpine3.24 AS build
+RUN npm install -g pnpm@12.3.4
 WORKDIR /app
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml* frontend/.npmrc* ./
 RUN pnpm install --frozen-lockfile
 COPY frontend/ .
 ARG VITE_API_URL=
